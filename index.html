@@ -1,0 +1,1919 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sushiban — Dashboard Ventas</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d0d0d;--bg2:#141414;--bg3:#1a1a1a;--card:#161616;
+  --border:#2a2a2a;--accent:#e8a84c;--accent2:#c8523a;--accent3:#4c9ebe;
+  --text:#f0ede8;--muted:#6b6860;--muted2:#4a4844;--green:#5aad7e;
+  --font-mono:'Space Mono',monospace;--font-body:'DM Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:9999;opacity:0.4;}
+
+/* ── SIDEBAR ── */
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:28px 0;z-index:100;}
+.sidebar-logo{padding:0 24px 28px;border-bottom:1px solid var(--border);margin-bottom:24px;}
+.logo-text{font-family:var(--font-mono);font-size:11px;color:var(--accent);letter-spacing:0.15em;text-transform:uppercase;line-height:1.6;}
+.logo-sub{font-size:10px;color:var(--muted);font-family:var(--font-mono);letter-spacing:0.06em;margin-top:4px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 24px;color:var(--muted);font-size:12px;font-family:var(--font-mono);letter-spacing:0.05em;cursor:pointer;transition:all 0.15s;border-left:2px solid transparent;text-transform:lowercase;user-select:none;}
+.nav-item:hover{color:var(--text);background:rgba(255,255,255,0.03);}
+.nav-item.active{color:var(--accent);border-left-color:var(--accent);background:rgba(232,168,76,0.05);}
+.nav-dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0;}
+.sidebar-footer{margin-top:auto;padding:20px 24px 0;border-top:1px solid var(--border);}
+.status-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);margin-right:6px;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+.status-text{font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:0.05em;}
+
+/* ── MAIN ── */
+.main{margin-left:220px;min-height:100vh;}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:20px 32px;border-bottom:1px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:50;}
+.topbar-title{font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;}
+.topbar-title span{color:var(--text);font-weight:700;}
+.date-range{display:flex;align-items:center;gap:8px;}
+.date-sep{font-family:var(--font-mono);font-size:11px;color:var(--muted);}
+input[type="date"]{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 12px;border-radius:4px;font-family:var(--font-mono);font-size:11px;letter-spacing:0.04em;outline:none;color-scheme:dark;}
+input[type="date"]:focus{border-color:var(--accent);}
+input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(0.5);cursor:pointer;}
+.refresh-btn{background:var(--bg3);border:1px solid var(--border);color:var(--muted);padding:6px 16px;border-radius:4px;font-family:var(--font-mono);font-size:10px;letter-spacing:0.08em;cursor:pointer;transition:all 0.15s;}
+.refresh-btn:hover{border-color:var(--accent);color:var(--accent);}
+.content{padding:32px;padding-bottom:60px;}
+
+/* ── KPI ── */
+.kpi-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:28px;}
+.kpi-card{background:var(--card);padding:20px 24px;position:relative;overflow:hidden;}
+.kpi-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--accent);transform:scaleX(0);transition:transform 0.3s;transform-origin:left;}
+.kpi-card:hover::after{transform:scaleX(1);}
+.kpi-label{font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:10px;}
+.kpi-value{font-family:var(--font-mono);font-size:22px;font-weight:700;color:var(--text);line-height:1;letter-spacing:-0.02em;}
+.kpi-value.a{color:var(--accent);}.kpi-value.g{color:var(--green);}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:6px;font-weight:300;}
+
+/* ── GRIDS ── */
+.g2{display:grid;grid-template-columns:1.6fr 1fr;gap:20px;margin-bottom:20px;}
+.g2b{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:20px;}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:20px;}
+
+/* ── PANEL ── */
+.panel{background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;animation:fadeUp 0.4s ease both;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+.ph{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);}
+.pt{font-family:var(--font-mono);font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);}
+.pt span{color:var(--text);}
+.pb{padding:3px 8px;border-radius:2px;font-family:var(--font-mono);font-size:9px;letter-spacing:0.05em;}
+.pb.o{background:rgba(232,168,76,0.12);color:var(--accent);}
+.pb.b{background:rgba(76,158,190,0.12);color:var(--accent3);}
+.pb.g{background:rgba(90,173,126,0.12);color:var(--green);}
+.pb.r{background:rgba(200,82,58,0.12);color:var(--accent2);}
+.pc{padding:20px;}
+.cw{position:relative;width:100%;}
+
+/* ── PRODUCTS ── */
+.pr{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);}
+.pr:last-child{border-bottom:none;}
+.prk{font-family:var(--font-mono);font-size:10px;color:var(--muted2);width:18px;flex-shrink:0;}
+.prw{flex:1;min-width:0;}
+.prn{font-size:12px;font-weight:500;color:var(--text);margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.prt{height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;}
+.prf{height:100%;background:var(--accent);border-radius:2px;transition:width 0.8s cubic-bezier(0.16,1,0.3,1);}
+.prv{font-family:var(--font-mono);font-size:11px;color:var(--text);text-align:right;flex-shrink:0;min-width:72px;}
+.prq{font-size:10px;color:var(--muted);text-align:right;font-family:var(--font-mono);}
+
+/* ── PAYMENTS ── */
+.pay{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--border);}
+.pay:last-child{border-bottom:none;}
+.pay-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.pay-name{flex:1;font-size:12px;color:var(--text);}
+.pay-pct{font-family:var(--font-mono);font-size:10px;color:var(--muted);min-width:36px;text-align:right;}
+.pay-amt{font-family:var(--font-mono);font-size:11px;color:var(--text);min-width:80px;text-align:right;}
+
+/* ── DONUT ── */
+.dw{display:flex;align-items:center;gap:24px;}
+.dc{position:relative;width:130px;height:130px;flex-shrink:0;}
+.dcenter{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;}
+.dcv{font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--text);line-height:1;}
+.dcl{font-size:9px;color:var(--muted);margin-top:3px;letter-spacing:0.05em;font-family:var(--font-mono);}
+
+/* ── SPLIT BARS ── */
+.sr{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+.sl{font-size:11px;font-family:var(--font-mono);color:var(--muted);min-width:72px;}
+.sbt{flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;}
+.sbf{height:100%;border-radius:3px;}
+.sv{font-family:var(--font-mono);font-size:11px;color:var(--text);min-width:55px;text-align:right;}
+
+/* ── TABLE ── */
+.tbl{width:100%;border-collapse:collapse;font-size:12px;}
+.tbl th{font-family:var(--font-mono);font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);padding:8px 12px;border-bottom:1px solid var(--border);text-align:left;font-weight:400;}
+.tbl td{padding:10px 12px;border-bottom:1px solid rgba(42,42,42,0.5);color:var(--text);}
+.tbl tr:last-child td{border-bottom:none;}
+.tbl tr:hover td{background:rgba(255,255,255,0.02);}
+.tbl .mono{font-family:var(--font-mono);font-size:11px;}
+.tbl .muted{color:var(--muted);}
+
+/* ── STATUSBAR ── */
+.statusbar{position:fixed;bottom:0;left:220px;right:0;height:32px;background:var(--bg2);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 32px;gap:24px;z-index:50;}
+.si{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:10px;color:var(--muted);}
+.si span{color:var(--text);}
+.si .dot{width:5px;height:5px;border-radius:50%;}
+
+/* ── DIVIDER ── */
+.dlbl{font-family:var(--font-mono);font-size:9px;color:var(--muted2);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:10px;}
+.dlbl::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* ── STAT TILE ── */
+.tile{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:16px 20px;}
+.tile-lbl{font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px;}
+.tile-val{font-family:var(--font-mono);font-size:20px;font-weight:700;color:var(--text);}
+.tile-sub{font-size:11px;color:var(--muted);margin-top:4px;}
+
+/* ── EXPORT BUTTONS ── */
+.xbtn{display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:14px 20px;border-radius:6px;cursor:pointer;transition:all 0.15s;font-size:13px;width:100%;}
+.xbtn:hover{border-color:var(--accent);color:var(--accent);}
+.xbtn-icon{font-family:var(--font-mono);font-size:14px;color:var(--accent);}
+
+/* ── LOADING ── */
+#loading-overlay{position:fixed;inset:0;background:rgba(13,13,13,0.9);z-index:200;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;backdrop-filter:blur(4px);}
+.ldot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.5s infinite;}
+.ltxt{font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:0.15em;animation:pulse 1.5s infinite;}
+
+/* ── EMPTY STATE ── */
+.empty{padding:32px;text-align:center;font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:0.1em;}
+
+/* ── TOPBAR CONTROLS ── */
+.topbar-main{display:flex;align-items:center;gap:14px;min-width:0;}
+.topbar-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;}
+.topbar-meta{font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin-top:6px;}
+.icon-btn,.filter-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-family:var(--font-mono);font-size:11px;letter-spacing:0.05em;height:34px;padding:0 12px;display:inline-flex;align-items:center;gap:8px;cursor:pointer;transition:all 0.15s;}
+.icon-btn:hover,.filter-btn:hover{border-color:var(--accent);color:var(--accent);}
+.menu-btn{display:none;width:34px;justify-content:center;padding:0;}
+.location-picker{position:relative;}
+.location-panel{position:absolute;top:calc(100% + 8px);right:0;width:300px;max-height:360px;overflow:auto;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;box-shadow:0 16px 32px rgba(0,0,0,0.35);display:none;z-index:120;}
+.location-picker.open .location-panel{display:block;}
+.location-panel-head{font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;}
+.location-list{display:flex;flex-direction:column;gap:8px;margin-top:10px;}
+.loc-option{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:var(--card);font-size:12px;color:var(--text);cursor:pointer;}
+.loc-option input{accent-color:var(--accent);}
+.loc-option-all{background:rgba(232,168,76,0.06);}
+.location-hint{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.5;}
+.mobile-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);backdrop-filter:blur(2px);z-index:95;}
+.tbl-wrap{overflow-x:auto;}
+.tbl{min-width:720px;}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 1100px){
+  .kpi-strip{grid-template-columns:repeat(3,1fr);}
+  .g2,.g2b,.g3{grid-template-columns:1fr;}
+  .g4{grid-template-columns:repeat(2,1fr);}
+}
+@media (max-width: 960px){
+  body.nav-open{overflow:hidden;}
+  .menu-btn{display:inline-flex;}
+  .sidebar{transform:translateX(-100%);transition:transform 0.22s ease;box-shadow:0 20px 40px rgba(0,0,0,0.45);}
+  body.nav-open .sidebar{transform:translateX(0);}
+  body.nav-open .mobile-backdrop{display:block;}
+  .main{margin-left:0;}
+  .statusbar{left:0;padding:0 16px;gap:16px;overflow-x:auto;white-space:nowrap;}
+  .topbar{padding:14px 16px;flex-direction:column;align-items:stretch;gap:12px;}
+  .topbar-controls{justify-content:stretch;}
+  .location-picker{width:100%;}
+  .filter-btn{width:100%;justify-content:space-between;}
+  .location-panel{left:0;right:auto;width:100%;max-height:min(50vh,360px);}
+  .date-range{display:grid;grid-template-columns:1fr auto 1fr auto;gap:8px;width:100%;}
+  .refresh-btn{height:34px;white-space:nowrap;}
+  .content{padding:16px;padding-bottom:72px;}
+  .kpi-strip{grid-template-columns:repeat(2,1fr);}
+  .kpi-strip .kpi-card:last-child:nth-child(odd){grid-column:1/-1;}
+  .g4{grid-template-columns:1fr 1fr;}
+  .dw{flex-direction:column;align-items:flex-start;gap:16px;}
+  .dc{margin:0 auto;}
+  .pc{padding:16px;}
+  .ph{padding:14px 16px;}
+  .statusbar .si:last-child{margin-left:0 !important;}
+}
+@media (max-width: 640px){
+  .sidebar{width:min(84vw,300px);}
+  .topbar-title{font-size:10px;}
+  .topbar-meta{font-size:9px;}
+  .date-range{grid-template-columns:1fr 1fr;gap:8px;}
+  .date-sep{display:none;}
+  .date-range input[type="date"]{width:100%;min-width:0;}
+  .refresh-btn{grid-column:1/-1;width:100%;}
+  .kpi-strip,.g4{grid-template-columns:1fr;}
+  .kpi-value{font-size:20px;}
+  .sl{min-width:60px;}
+  .sv{min-width:48px;}
+  .dc{width:116px;height:116px;}
+  .pc .cw{height:180px !important;}
+  .statusbar{height:36px;}
+}
+
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading-overlay">
+  <div class="ldot"></div>
+  <div class="ltxt">cargando datos...</div>
+</div>
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-text">Sushiban</div>
+    <div class="logo-sub" id="sidebar-subtitle">Santa María de Manquehue</div>
+  </div>
+  <div class="nav-item active" data-view="overview"><div class="nav-dot"></div>overview</div>
+  <div class="nav-item" data-view="ventas"><div class="nav-dot"></div>ventas</div>
+  <div class="nav-item" data-view="productos"><div class="nav-dot"></div>productos</div>
+  <div class="nav-item" data-view="delivery"><div class="nav-dot"></div>delivery</div>
+  <div class="nav-item" data-view="mesas"><div class="nav-dot"></div>mesas</div>
+  <div class="nav-item" data-view="locales"><div class="nav-dot"></div>por local</div>
+  <div class="nav-item" data-view="exportar"><div class="nav-dot"></div>exportar</div>
+  <div class="sidebar-footer">
+    <span class="status-dot"></span>
+    <span class="status-text">datos al día</span>
+  </div>
+</nav>
+<div class="mobile-backdrop" id="mobile-backdrop"></div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-main">
+      <button class="icon-btn menu-btn" id="menu-btn" type="button" aria-label="Abrir menú">☰</button>
+      <div>
+        <div class="topbar-title"><span id="view-title">overview</span> · dashboard ventas</div>
+        <div class="topbar-meta" id="scope-summary">alcance · 1 local</div>
+      </div>
+    </div>
+    <div class="topbar-controls">
+      <div class="location-picker" id="location-picker">
+        <button class="filter-btn" id="location-btn" type="button" aria-expanded="false">
+          <span id="location-btn-label">locales · 1</span>
+          <span aria-hidden="true">▾</span>
+        </button>
+        <div class="location-panel" id="location-panel">
+          <div class="location-panel-head">selección de locales</div>
+          <label class="loc-option loc-option-all">
+            <input type="checkbox" id="location-all">
+            <span>Todos los locales</span>
+          </label>
+          <div class="location-list" id="location-list"></div>
+          <div class="location-hint">Puedes marcar 1, 3 o todos los locales.</div>
+        </div>
+      </div>
+      <div class="date-range">
+        <input type="date" id="date-from">
+        <span class="date-sep">→</span>
+        <input type="date" id="date-to">
+        <button class="refresh-btn" id="refresh-btn" type="button">↺ actualizar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ OVERVIEW ══ -->
+  <div id="view-overview" class="content">
+    <div class="kpi-strip">
+      <div class="kpi-card"><div class="kpi-label">ventas totales</div><div class="kpi-value a" id="ov-ventas">—</div><div class="kpi-sub" id="ov-vsub">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">ticket promedio</div><div class="kpi-value" id="ov-ticket">—</div><div class="kpi-sub">por orden</div></div>
+      <div class="kpi-card"><div class="kpi-label">margen bruto</div><div class="kpi-value g" id="ov-margen">—</div><div class="kpi-sub" id="ov-msub">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">órdenes</div><div class="kpi-value" id="ov-ordenes">—</div><div class="kpi-sub" id="ov-osub">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">delivery vs local</div><div class="kpi-value" id="ov-del">—</div><div class="kpi-sub" id="ov-dsub">—</div></div>
+    </div>
+    <div class="g2">
+      <div class="panel">
+        <div class="ph"><div class="pt"><span>ventas diarias</span> · período</div><span class="pb o">CLP</span></div>
+        <div class="pc"><div class="cw" style="height:220px"><canvas id="c-diario"></canvas></div></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><div class="pt"><span>canal de venta</span> · split</div><span class="pb b">%</span></div>
+        <div class="pc">
+          <div class="dw" style="margin-bottom:24px">
+            <div class="dc"><canvas id="c-canal"></canvas><div class="dcenter"><div class="dcv" id="ov-dn">—</div><div class="dcl">órdenes</div></div></div>
+            <div style="flex:1">
+              <div style="margin-bottom:14px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="width:8px;height:8px;border-radius:50%;background:#e8a84c"></div><span style="font-size:12px">Delivery</span></div>
+                <div style="font-family:var(--font-mono);font-size:18px;font-weight:700;color:var(--accent)" id="ov-damt">—</div>
+                <div style="font-size:11px;color:var(--muted)" id="ov-dsub2">—</div>
+              </div>
+              <div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="width:8px;height:8px;border-radius:50%;background:#4c9ebe"></div><span style="font-size:12px">Local</span></div>
+                <div style="font-family:var(--font-mono);font-size:18px;font-weight:700;color:var(--accent3)" id="ov-lamt">—</div>
+                <div style="font-size:11px;color:var(--muted)" id="ov-lsub2">—</div>
+              </div>
+            </div>
+          </div>
+          <div class="dlbl">por día</div>
+          <div id="ov-split"></div>
+        </div>
+      </div>
+    </div>
+    <div class="g2b">
+      <div class="panel">
+        <div class="ph"><div class="pt"><span>top productos</span> · ingresos</div><span class="pb o">ranking</span></div>
+        <div class="pc" style="padding:16px 20px"><div id="ov-prods"><div class="empty">cargando...</div></div></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <div class="panel">
+          <div class="ph"><div class="pt"><span>medio de pago</span> · desglose</div><span class="pb g">total</span></div>
+          <div class="pc" style="padding:12px 20px"><div id="ov-pays"><div class="empty">cargando...</div></div></div>
+        </div>
+        <div class="panel" style="flex:1">
+          <div class="ph"><div class="pt"><span>medio de pago</span> · visual</div></div>
+          <div class="pc" style="height:160px"><canvas id="c-pago"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ VENTAS ══ -->
+  <div id="view-ventas" class="content" style="display:none">
+    <div class="kpi-strip">
+      <div class="kpi-card"><div class="kpi-label">ventas totales</div><div class="kpi-value a" id="vn-ventas">—</div><div class="kpi-sub" id="vn-vsub">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">mejor día</div><div class="kpi-value" id="vn-best">—</div><div class="kpi-sub" id="vn-bestsub">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">descuentos</div><div class="kpi-value" style="color:var(--accent2)" id="vn-desc">—</div><div class="kpi-sub" id="vn-descsub">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">hora pico</div><div class="kpi-value" id="vn-hora">—</div><div class="kpi-sub">mayor volumen</div></div>
+      <div class="kpi-card"><div class="kpi-label">promedio/día</div><div class="kpi-value" id="vn-avg">—</div><div class="kpi-sub">ventas diarias</div></div>
+    </div>
+    <div class="g2">
+      <div class="panel">
+        <div class="ph"><div class="pt"><span>ventas por hora</span> · apertura de orden</div><span class="pb o">CLP</span></div>
+        <div class="pc"><div class="cw" style="height:220px"><canvas id="c-hora"></canvas></div></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><div class="pt"><span>descuentos</span> · por origen</div><span class="pb r">análisis</span></div>
+        <div class="pc"><div id="vn-desc-list"><div class="empty">sin datos</div></div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><div class="pt"><span>ventas diarias</span> · detalle por día</div><span class="pb b">tabla</span></div>
+      <div class="pc" style="padding:0 20px 8px"><div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>fecha</th><th>órdenes</th><th>ventas</th><th>delivery</th><th>local</th><th>margen</th><th>ticket prom.</th></tr></thead>
+          <tbody id="vn-tabla"></tbody>
+        </table>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ══ PRODUCTOS ══ -->
+  <div id="view-productos" class="content" style="display:none">
+    <div class="kpi-strip">
+      <div class="kpi-card"><div class="kpi-label">productos distintos</div><div class="kpi-value a" id="pr-distinct">—</div><div class="kpi-sub">vendidos en período</div></div>
+      <div class="kpi-card"><div class="kpi-label">unidades totales</div><div class="kpi-value" id="pr-units">—</div><div class="kpi-sub" id="pr-usub">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">producto #1</div><div class="kpi-value" id="pr-top1" style="font-size:13px">—</div><div class="kpi-sub" id="pr-top1sub">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">categoría líder</div><div class="kpi-value" id="pr-cat1" style="font-size:13px">—</div><div class="kpi-sub" id="pr-cat1sub">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">ticket/producto</div><div class="kpi-value" id="pr-tprod">—</div><div class="kpi-sub">ingreso medio</div></div>
+    </div>
+    <div class="g2b">
+      <div class="panel">
+        <div class="ph"><div class="pt"><span>ranking productos</span> · por ingresos</div><span class="pb o">top 15</span></div>
+        <div class="pc" style="height:420px;overflow-y:auto"><div id="pr-list"><div class="empty">cargando...</div></div></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <div class="panel">
+          <div class="ph"><div class="pt"><span>ventas por categoría</span></div><span class="pb b">%</span></div>
+          <div class="pc" style="height:180px"><canvas id="c-cat"></canvas></div>
+        </div>
+        <div class="panel" style="flex:1">
+          <div class="ph"><div class="pt"><span>categorías</span> · detalle</div></div>
+          <div class="pc" style="padding:12px 20px"><div id="pr-cats"><div class="empty">cargando...</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ DELIVERY ══ -->
+  <div id="view-delivery" class="content" style="display:none">
+    <div class="kpi-strip">
+      <div class="kpi-card"><div class="kpi-label">ventas delivery</div><div class="kpi-value a" id="dl-ventas">—</div><div class="kpi-sub" id="dl-vsub">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">% del total</div><div class="kpi-value" id="dl-pct">—</div><div class="kpi-sub">participación</div></div>
+      <div class="kpi-card"><div class="kpi-label">ticket delivery</div><div class="kpi-value" id="dl-ticket">—</div><div class="kpi-sub">promedio</div></div>
+      <div class="kpi-card"><div class="kpi-label">órdenes delivery</div><div class="kpi-value" id="dl-orders">—</div><div class="kpi-sub" id="dl-osub">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">descuentos plataforma</div><div class="kpi-value" style="color:var(--accent2)" id="dl-desc">—</div><div class="kpi-sub">UberEats + otros</div></div>
+    </div>
+    <div class="g2">
+      <div class="panel">
+        <div class="ph"><div class="pt"><span>plataformas</span> · desglose</div><span class="pb o">CLP</span></div>
+        <div class="pc" style="height:220px"><canvas id="c-plat"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><div class="pt"><span>delivery vs local</span> · por día</div><span class="pb b">split</span></div>
+        <div class="pc"><div id="dl-split"><div class="empty">cargando...</div></div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><div class="pt"><span>análisis delivery</span> · métricas clave</div></div>
+      <div class="pc"><div id="dl-metrics" class="g4" style="gap:16px;margin:0"></div></div>
+    </div>
+  </div>
+
+  <!-- ══ MESAS ══ -->
+  <div id="view-mesas" class="content" style="display:none">
+    <div class="kpi-strip">
+      <div class="kpi-card"><div class="kpi-label">ventas locales</div><div class="kpi-value a" id="ms-ventas">—</div><div class="kpi-sub" id="ms-vsub">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">total comensales</div><div class="kpi-value" id="ms-pax">—</div><div class="kpi-sub">personas atendidas</div></div>
+      <div class="kpi-card"><div class="kpi-label">ticket/comensal</div><div class="kpi-value" id="ms-tpax">—</div><div class="kpi-sub">gasto por persona</div></div>
+      <div class="kpi-card"><div class="kpi-label">tiempo promedio</div><div class="kpi-value" id="ms-tiempo">—</div><div class="kpi-sub">minutos por mesa</div></div>
+      <div class="kpi-card"><div class="kpi-label">comensales/mesa</div><div class="kpi-value" id="ms-ratio">—</div><div class="kpi-sub">promedio</div></div>
+    </div>
+    <div class="g2b">
+      <div class="panel">
+        <div class="ph"><div class="pt"><span>ventas por zona</span></div><span class="pb g">local</span></div>
+        <div class="pc"><div id="ms-zonas"><div class="empty">sin datos locales</div></div></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><div class="pt"><span>distribución</span> · local vs delivery</div><span class="pb b">comparativa</span></div>
+        <div class="pc" style="height:220px"><canvas id="c-mesas"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ POR LOCAL ══ -->
+  <div id="view-locales" class="content" style="display:none">
+    <div class="kpi-strip">
+      <div class="kpi-card"><div class="kpi-label">locales activos</div><div class="kpi-value a" id="lc-count">—</div><div class="kpi-sub">seleccionados</div></div>
+      <div class="kpi-card"><div class="kpi-label">top local</div><div class="kpi-value" id="lc-top" style="font-size:13px">—</div><div class="kpi-sub" id="lc-topsub">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">ventas totales</div><div class="kpi-value a" id="lc-ventas">—</div><div class="kpi-sub" id="lc-vsub">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">ticket promedio</div><div class="kpi-value" id="lc-ticket">—</div><div class="kpi-sub">promedio todos los locales</div></div>
+      <div class="kpi-card"><div class="kpi-label">margen promedio</div><div class="kpi-value g" id="lc-margen">—</div><div class="kpi-sub">ponderado</div></div>
+    </div>
+    <div class="g2">
+      <div class="panel">
+        <div class="ph"><div class="pt"><span>ventas por local</span> · comparativa</div><span class="pb o">CLP</span></div>
+        <div class="pc"><div class="cw" style="height:280px"><canvas id="c-locales"></canvas></div></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><div class="pt"><span>ranking de locales</span> · período</div><span class="pb b">tabla</span></div>
+        <div class="pc" style="padding:0 20px 8px"><div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>#</th><th>local</th><th>ventas</th><th>órdenes</th><th>ticket</th><th>margen</th><th>delivery%</th></tr></thead>
+            <tbody id="lc-tabla"></tbody>
+          </table>
+        </div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><div class="pt"><span>split delivery / local</span> · por sucursal</div><span class="pb g">%</span></div>
+      <div class="pc"><div id="lc-split" class="g3" style="gap:16px;margin:0"></div></div>
+    </div>
+  </div>
+
+  <!-- ══ EXPORTAR ══ -->
+  <div id="view-exportar" class="content" style="display:none">
+    <div style="max-width:600px">
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:24px">
+        exportar datos · período: <span id="ex-period" style="color:var(--text)">—</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <button class="xbtn" onclick="exportCSV('ordenes')">
+          <span class="xbtn-icon">↓</span>
+          <div>
+            <div style="font-weight:500">Órdenes del período</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px" id="ex-ordenes-info">—</div>
+          </div>
+        </button>
+        <button class="xbtn" onclick="exportCSV('productos')">
+          <span class="xbtn-icon">↓</span>
+          <div>
+            <div style="font-weight:500">Productos vendidos</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px" id="ex-prods-info">—</div>
+          </div>
+        </button>
+        <button class="xbtn" onclick="exportCSV('resumen')">
+          <span class="xbtn-icon">↓</span>
+          <div>
+            <div style="font-weight:500">Resumen diario</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">Métricas agregadas por día en CSV</div>
+          </div>
+        </button>
+      </div>
+      <div style="margin-top:32px;padding:16px 20px;background:var(--bg3);border:1px solid var(--border);border-radius:6px">
+        <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);letter-spacing:0.1em;margin-bottom:8px">NOTA</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6">Los archivos se descargan en formato CSV compatible con Excel y Google Sheets. Los datos exportados corresponden al período seleccionado en el filtro de fecha.</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- STATUS BAR -->
+<div class="statusbar">
+  <div class="si"><div class="dot" style="background:#c7c7c7"></div>locales: <span id="sb-scope">1</span></div>
+  <div class="si"><div class="dot" style="background:#e8a84c"></div>delivery: <span id="sb-del">—</span></div>
+  <div class="si"><div class="dot" style="background:#4c9ebe"></div>local: <span id="sb-loc">—</span></div>
+  <div class="si"><div class="dot" style="background:#5aad7e"></div>margen: <span id="sb-mar">—</span></div>
+  <div class="si"><div class="dot" style="background:#6b6860"></div>descuentos: <span id="sb-dsc">—</span></div>
+  <div class="si" style="margin-left:auto">actualización: <span id="sb-upd">—</span></div>
+</div>
+
+<script>
+
+// ════════════════════════════════════════════════════
+//  CONFIG
+// ════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════
+//  CONFIG — Solo necesitás cambiar MASTER_SHEET_ID
+//  Es el ID del Google Sheet maestro con todos los locales
+//  URL: spreadsheets/d/[MASTER_SHEET_ID]/edit
+// ════════════════════════════════════════════════════
+const MASTER_SHEET_ID = '1ytfLJDMHuvg7kcYq_Y1G5hJx2BritUV4C4RxDyBjcZI';
+
+// Hojas que se leen del Sheet maestro
+const SHEET_ORDENES   = '📋 ordenes';
+const SHEET_PRODUCTOS = '🛍️ productos';
+
+// Se puebla automáticamente desde los datos — no tocar
+let ALL_LOCATIONS = [];
+const PAY_COLORS = ['#e8a84c','#c8523a','#4c9ebe','#5aad7e','#9b7dc8','#4a4844','#7a6050'];
+const BAR_COLORS = ['var(--accent)','var(--accent)','var(--accent2)','var(--accent2)','var(--accent3)','var(--accent3)','var(--accent3)','var(--green)'];
+const EMPTY_HTML = '<div class="empty">sin datos en período</div>';
+const LOADING_HTML = `
+  <div class="ldot"></div>
+  <div class="ltxt">cargando datos...</div>
+`;
+
+// ════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════
+let rawOrdenes = [];
+let rawProductos = [];
+let currentView = 'overview';
+let lastSyncAt = null;
+let selectedLocals = new Set(); // vacío = todos los locales
+const charts = {};
+const sheetCache = new Map();
+
+Chart.defaults.color = '#6b6860';
+Chart.defaults.font.family = "'Space Mono', monospace";
+Chart.defaults.font.size = 10;
+
+// ════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  setDefaultDates();
+  initAllCharts();
+  bindEvents();
+  loadData();
+});
+
+function bindEvents() {
+  document.getElementById('refresh-btn')?.addEventListener('click', () => loadData({ force: true }));
+  document.getElementById('date-from')?.addEventListener('change', () => loadData({ force: true }));
+  document.getElementById('date-to')?.addEventListener('change', () => loadData({ force: true }));
+  document.getElementById('menu-btn')?.addEventListener('click', toggleMobileNav);
+  document.getElementById('mobile-backdrop')?.addEventListener('click', closeMobileNav);
+  document.getElementById('location-btn')?.addEventListener('click', toggleLocationPanel);
+  document.getElementById('location-list')?.addEventListener('change', onLocationChange);
+  document.getElementById('location-all')?.addEventListener('change', onToggleAllLocations);
+
+  document.querySelectorAll('.nav-item[data-view]').forEach((el) => {
+    el.addEventListener('click', () => {
+      showView(el.dataset.view);
+      closeMobileNav();
+    });
+  });
+
+  document.addEventListener('click', (event) => {
+    const picker = document.getElementById('location-picker');
+    if (picker && !picker.contains(event.target)) closeLocationPanel();
+  });
+
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 960) closeMobileNav();
+  });
+
+  renderLocationPicker();
+}
+
+function setDefaultDates() {
+  const today = new Date();
+  const from = new Date(today);
+  from.setDate(today.getDate() - 29); // last 30 days by default
+  from.setHours(0, 0, 0, 0);
+
+  setInputValue('date-from', formatDateLocal(from));
+  setInputValue('date-to', formatDateLocal(today));
+}
+
+function setInputValue(id, value) {
+  const input = document.getElementById(id);
+  if (input) input.value = value;
+}
+
+function getActiveLocations() {
+  if (selectedLocals.size === 0 || selectedLocals.size === ALL_LOCATIONS.length) return ALL_LOCATIONS;
+  return ALL_LOCATIONS.filter((name) => selectedLocals.has(name));
+}
+
+function getSelectionSummary() {
+  const active = getActiveLocations();
+  if (active.length === 0) return 'sin selección';
+  if (active.length === ALL_LOCATIONS.length) return `todos · ${ALL_LOCATIONS.length} locales`;
+  if (active.length === 1) return active[0];
+  if (active.length <= 3) return active.join(' · ');
+  return `${active.length} locales seleccionados`;
+}
+
+function renderLocationPicker() {
+  const list = document.getElementById('location-list');
+  const all = document.getElementById('location-all');
+  const buttonLabel = document.getElementById('location-btn-label');
+  const summary = getSelectionSummary();
+  const active = getActiveLocations();
+
+  if (list) {
+    list.innerHTML = ALL_LOCATIONS.map((name) => `
+      <label class="loc-option">
+        <input type="checkbox" value="${esc(name)}" ${(selectedLocals.size === 0 || selectedLocals.has(name)) ? 'checked' : ''}>
+        <span>${esc(name)}</span>
+      </label>
+    `).join('');
+  }
+
+  if (all) all.checked = active.length === ALL_LOCATIONS.length;
+  if (buttonLabel) buttonLabel.textContent = active.length === ALL_LOCATIONS.length ? 'locales · todos' : `locales · ${active.length}`;
+  set('scope-summary', `alcance · ${summary}`);
+  set('sidebar-subtitle', active.length === 1 ? active[0] : `${active.length} locales seleccionados`);
+  set('sb-scope', String(active.length));
+}
+
+function applyLocationSelection(names, options = {}) {
+  const valid = names.filter((n) => ALL_LOCATIONS.includes(n));
+  selectedLocals = new Set(valid.length > 0 ? valid : ALL_LOCATIONS);
+  renderLocationPicker();
+  if (options.reload !== false) render();
+}
+
+function onLocationChange() {
+  const names = Array.from(document.querySelectorAll('#location-list input[type="checkbox"]:checked')).map((input) => input.value);
+  applyLocationSelection(names, { reload: false });
+  render();
+}
+
+function onToggleAllLocations(event) {
+  if (event.target.checked) {
+    selectedLocals = new Set();
+    renderLocationPicker();
+    render();
+    return;
+  }
+  applyLocationSelection(ALL_LOCATIONS.slice(0, 1), { reload: false });
+  render();
+}
+
+function toggleLocationPanel(event) {
+  event.stopPropagation();
+  const picker = document.getElementById('location-picker');
+  const button = document.getElementById('location-btn');
+  if (!picker) return;
+
+  const open = picker.classList.toggle('open');
+  if (button) button.setAttribute('aria-expanded', String(open));
+}
+
+function closeLocationPanel() {
+  const picker = document.getElementById('location-picker');
+  const button = document.getElementById('location-btn');
+  if (picker) picker.classList.remove('open');
+  if (button) button.setAttribute('aria-expanded', 'false');
+}
+
+function toggleMobileNav() {
+  document.body.classList.toggle('nav-open');
+}
+
+function closeMobileNav() {
+  document.body.classList.remove('nav-open');
+}
+
+function formatDateLocal(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function normalizeDateValue(value) {
+  if (!value) return '';
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return formatDateLocal(value);
+  }
+
+  const raw = String(value).trim();
+  if (!raw) return '';
+
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+
+  const clMatch = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+  if (clMatch) {
+    const day = clMatch[1].padStart(2, '0');
+    const month = clMatch[2].padStart(2, '0');
+    const year = clMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? '' : formatDateLocal(parsed);
+}
+
+function toDate(value) {
+  const iso = normalizeDateValue(value);
+  return iso ? new Date(`${iso}T12:00:00`) : null;
+}
+
+function getSelectedRange() {
+  let from = document.getElementById('date-from')?.value || '';
+  let to = document.getElementById('date-to')?.value || '';
+
+  if (from && to && from > to) {
+    [from, to] = [to, from];
+    setInputValue('date-from', from);
+    setInputValue('date-to', to);
+  }
+
+  return { from, to };
+}
+
+function showView(name) {
+  document.querySelectorAll('.main > .content[id^="view-"]').forEach((el) => {
+    el.style.display = 'none';
+  });
+
+  const target = document.getElementById(`view-${name}`);
+  if (target) target.style.display = 'block';
+
+  document.querySelectorAll('.nav-item[data-view]').forEach((el) => {
+    el.classList.toggle('active', el.dataset.view === name);
+  });
+
+  set('view-title', name);
+  currentView = name;
+
+  if (rawOrdenes.length || rawProductos.length) {
+    render();
+  }
+}
+
+// ════════════════════════════════════════════════════
+//  FETCH
+// ════════════════════════════════════════════════════
+async function fetchSheet(sheetId, name, options = {}) {
+  const cacheKey = `${sheetId}::${name}::${options.dateFrom || ''}`;
+
+  if (!options.force && sheetCache.has(cacheKey)) {
+    return sheetCache.get(cacheKey);
+  }
+
+  // Add date filter to avoid gviz row limit (~10k rows) on large sheets
+  let tqParam = '';
+  if (options.dateFrom) {
+    // Fetch 2 extra days as buffer for timezone edge cases
+    const buf = new Date(options.dateFrom);
+    buf.setDate(buf.getDate() - 2);
+    const bufStr = buf.toISOString().slice(0, 10);
+    tqParam = `&tq=${encodeURIComponent(`select * where A >= '${bufStr}'`)}`;
+  }
+
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(name)}${tqParam}`;
+  const response = await fetch(url, { cache: options.force ? 'no-store' : 'default' });
+
+  if (!response.ok) {
+    throw new Error(`Google Sheets respondió ${response.status}.`);
+  }
+
+  const rawText = await response.text();
+  const match = rawText.match(/setResponse\(([\s\S]*?)\);?\s*$/);
+
+  if (!match) {
+    throw new Error('No se pudo leer el Sheet. Verifica que esté compartido como público.');
+  }
+
+  const data = JSON.parse(match[1]);
+
+  if (data.status !== 'ok') {
+    throw new Error(data.errors?.[0]?.message || 'Error en Google Sheets.');
+  }
+
+  const cols = data.table.cols.map((col) => col.label?.trim() || '');
+
+  const rows = (data.table.rows || []).map((row) => {
+    const item = {};
+
+    (row.c || []).forEach((cell, index) => {
+      if (!cols[index]) return;
+
+      let value = cell?.v ?? null;
+
+      if (typeof value === 'string' && /^Date\(/.test(value)) {
+        const parts = value.match(/Date\((\d+),(\d+),(\d+)(?:,(\d+),(\d+),(\d+))?\)/);
+        if (parts) {
+          value = new Date(
+            Number(parts[1]),
+            Number(parts[2]),
+            Number(parts[3]),
+            Number(parts[4] || 0),
+            Number(parts[5] || 0),
+            Number(parts[6] || 0)
+          );
+        }
+      }
+
+      item[cols[index]] = value;
+    });
+
+    return item;
+  });
+
+  sheetCache.set(cacheKey, rows);
+  return rows;
+}
+
+// Fetches the master sheet — single source of truth for all locals
+async function fetchMasterSheet(options = {}) {
+  const [ordenes, productos] = await Promise.all([
+    fetchSheet(MASTER_SHEET_ID, SHEET_ORDENES, options),
+    fetchSheet(MASTER_SHEET_ID, SHEET_PRODUCTOS, options)
+  ]);
+  return { ordenes, productos };
+}
+
+async function loadData(options = {}) {
+  setLoading(true);
+  let ok = false;
+
+  try {
+    closeLocationPanel();
+    // Pass the selected from-date so gviz filters server-side
+    const dateFrom = document.getElementById('date-from')?.value || '';
+    const fetchOpts = { ...options, dateFrom };
+    const { ordenes, productos } = await fetchMasterSheet(fetchOpts);
+
+    rawOrdenes   = ordenes;
+    rawProductos = productos;
+    lastSyncAt   = new Date();
+
+    // Derive unique locals from data — sorted alphabetically
+    const newLocals = [...new Set(ordenes.map((r) => r.local).filter(Boolean))].sort();
+    const isFirstLoad = ALL_LOCATIONS.length === 0;
+    ALL_LOCATIONS = newLocals;
+
+    // On first load select all; on refresh keep current selection
+    if (isFirstLoad || selectedLocals.size === 0) {
+      selectedLocals = new Set(); // empty = all
+    }
+
+    renderLocationPicker();
+    ok = true;
+    render();
+  } catch (error) {
+    showError(error instanceof Error ? error.message : String(error));
+  } finally {
+    if (ok) setLoading(false);
+  }
+}
+
+// ════════════════════════════════════════════════════
+//  DATA HELPERS
+// ════════════════════════════════════════════════════
+function filterDate(rows, from, to, col = 'fecha') {
+  return rows.filter((row) => {
+    const value = normalizeDateValue(row[col]);
+    return value && value >= from && value <= to;
+  });
+}
+
+function sum(arr, key) {
+  return arr.reduce((acc, row) => acc + (+row[key] || 0), 0);
+}
+
+function groupBy(arr, fn) {
+  return arr.reduce((acc, item) => {
+    const key = fn(item);
+    (acc[key] = acc[key] || []).push(item);
+    return acc;
+  }, {});
+}
+
+function normCanal(value) {
+  const raw = String(value || '').trim();
+  if (/delivery/i.test(raw)) return 'Delivery';
+  if (/local|sal[oó]n|mesa/i.test(raw)) return 'Local';
+  return raw || 'Otro';
+}
+
+function normPago(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return 'Otro';
+  if (/uber/i.test(raw)) return 'UberEats';
+  if (/d[eé]bit/i.test(raw)) return 'Débito';
+  if (/cr[eé]dit/i.test(raw)) return 'Crédito';
+  if (/mercat/i.test(raw)) return 'Mercat';
+  if (/efectivo/i.test(raw)) return 'Efectivo';
+  if (/casa/i.test(raw)) return 'Cta. Casa';
+  return raw.split(' ')[0];
+}
+
+function normPlatform(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return 'Delivery directo';
+  if (/uber/i.test(raw)) return 'UberEats';
+  if (/mercat/i.test(raw)) return 'Mercat';
+  if (/rappi/i.test(raw)) return 'Rappi';
+  if (/pedido/i.test(raw)) return 'PedidosYa';
+  if (/whatsapp|web|direct|telefono|tel[eé]fono/i.test(raw)) return 'Delivery directo';
+  return raw;
+}
+
+function resolvePlatform(order) {
+  return normPlatform(order.plataforma || order.caja || order.medio_pago || order.tipo);
+}
+
+function dateKey(row) {
+  return normalizeDateValue(row.fecha);
+}
+
+function parseHourBucket(value) {
+  if (value == null || value === '') return '—';
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return String(value.getHours()).padStart(2, '0');
+  }
+
+  if (typeof value === 'number') {
+    if (value >= 0 && value < 1) {
+      return String(Math.floor(value * 24) % 24).padStart(2, '0');
+    }
+    if (value >= 0 && value <= 23) {
+      return String(Math.floor(value)).padStart(2, '0');
+    }
+  }
+
+  const raw = String(value).trim();
+  const match = raw.match(/(\d{1,2})(?::|\.|h)?(\d{2})?/i);
+
+  if (!match) return '—';
+
+  const hour = Number(match[1]);
+  if (Number.isNaN(hour) || hour < 0 || hour > 23) return '—';
+
+  return String(hour).padStart(2, '0');
+}
+
+function fmt(value) {
+  const number = +value || 0;
+  if (Math.abs(number) >= 1e6) return `$${(number / 1e6).toFixed(2)}M`;
+  if (Math.abs(number) >= 1e3) return `$${(number / 1e3).toFixed(0)}K`;
+  return `$${Math.round(number).toLocaleString('es-CL')}`;
+}
+
+function fmtF(value) {
+  return `$${Math.round(+value || 0).toLocaleString('es-CL')}`;
+}
+
+function fmtPct(value) {
+  return `${(+value || 0).toFixed(1).replace('.', ',')} %`;
+}
+
+function dayLbl(value) {
+  const date = toDate(value);
+  if (!date) return 'sin fecha';
+
+  return `${['dom','lun','mar','mié','jue','vie','sáb'][date.getDay()]} ${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function esc(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function shortWords(value, maxWords = 2) {
+  return String(value || '').trim().split(/\s+/).filter(Boolean).slice(0, maxWords).join(' ') || '—';
+}
+
+function csvSafe(value) {
+  const text = String(value ?? '');
+  return /^[=+\-@]/.test(text) ? `'${text}` : text;
+}
+
+// ════════════════════════════════════════════════════
+//  METRICS
+// ════════════════════════════════════════════════════
+function calcMetrics(ordenes, productos) {
+  const totalV = sum(ordenes, 'cobrado');
+  const totalM = sum(ordenes, 'margen_bruto');
+  const totalD = Math.abs(sum(ordenes, 'descuentos'));
+  const netV = totalV - totalD;
+  const n = ordenes.length;
+  const ticket = n > 0 ? totalV / n : 0;
+  const mpct = totalV > 0 ? (totalM / totalV) * 100 : 0;
+
+  const delOrd = ordenes.filter((order) => normCanal(order.tipo) === 'Delivery');
+  const locOrd = ordenes.filter((order) => normCanal(order.tipo) === 'Local');
+  const delV = sum(delOrd, 'cobrado');
+  const locV = sum(locOrd, 'cobrado');
+  const delPct = totalV > 0 ? (delV / totalV) * 100 : 0;
+  const delDesc = Math.abs(sum(delOrd, 'descuentos'));
+  const delM = sum(delOrd, 'margen_bruto');
+  const locTicket = locOrd.length > 0 ? locV / locOrd.length : 0;
+
+  const byDay = groupBy(ordenes.filter((order) => dateKey(order)), dateKey);
+  const dias = Object.entries(byDay)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([fecha, orders]) => {
+      const deliveryOrders = orders.filter((order) => normCanal(order.tipo) === 'Delivery');
+      const localOrders = orders.filter((order) => normCanal(order.tipo) === 'Local');
+      const ventas = sum(orders, 'cobrado');
+
+      return {
+        fecha,
+        ventas,
+        del: sum(deliveryOrders, 'cobrado'),
+        loc: sum(localOrders, 'cobrado'),
+        margen: sum(orders, 'margen_bruto'),
+        n: orders.length,
+        ticket: orders.length > 0 ? ventas / orders.length : 0
+      };
+    });
+
+  const byPago = groupBy(ordenes, (order) => normPago(order.medio_pago));
+  const pagos = Object.entries(byPago)
+    .map(([name, orders]) => ({ name, amount: sum(orders, 'cobrado') }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const byProd = groupBy(productos, (product) => String(product.producto_nombre || '').trim());
+  const topProds = Object.entries(byProd)
+    .map(([name, items]) => ({
+      name,
+      rev: sum(items, 'cobrado_prod'),
+      qty: sum(items, 'cantidad')
+    }))
+    .filter((product) => product.name && product.rev > 0)
+    .sort((a, b) => b.rev - a.rev)
+    .slice(0, 15);
+
+  const byCat = groupBy(productos, (product) => String(product.categoria || 'Sin categoría').trim());
+  const cats = Object.entries(byCat)
+    .map(([name, items]) => ({ name, rev: sum(items, 'cobrado_prod') }))
+    .filter((category) => category.rev > 0)
+    .sort((a, b) => b.rev - a.rev);
+
+  const byHora = groupBy(ordenes, (order) => parseHourBucket(order.hora_apertura));
+  const horas = Object.entries(byHora)
+    .filter(([hour]) => hour !== '—')
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([hour, orders]) => ({
+      hora: `${hour}:00`,
+      ventas: sum(orders, 'cobrado'),
+      n: orders.length
+    }));
+
+  const byDesc = groupBy(
+    ordenes.filter((order) => Math.abs(+order.descuentos || 0) > 0),
+    (order) => String(order.tipo_descuento || 'Sin especificar').trim() || 'Sin especificar'
+  );
+  const descs = Object.entries(byDesc)
+    .map(([name, orders]) => ({
+      name,
+      amount: Math.abs(sum(orders, 'descuentos'))
+    }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const locComens = sum(locOrd, 'comensales');
+  const locTiempo = locOrd.length > 0 ? sum(locOrd, 'minutos_mesa') / locOrd.length : 0;
+  const locRatio = locOrd.length > 0 ? locComens / locOrd.length : 0;
+
+  const byZona = groupBy(locOrd, (order) => String(order.zona || 'Sin zona').trim() || 'Sin zona');
+  const zonas = Object.entries(byZona)
+    .map(([name, orders]) => ({
+      name,
+      ventas: sum(orders, 'cobrado'),
+      n: orders.length
+    }))
+    .sort((a, b) => b.ventas - a.ventas);
+
+  const byPlatform = groupBy(delOrd, resolvePlatform);
+  const platforms = Object.entries(byPlatform)
+    .map(([name, orders]) => ({
+      name,
+      amount: sum(orders, 'cobrado'),
+      n: orders.length
+    }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const bestDay = dias.reduce((best, day) => (day.ventas > (best?.ventas || 0) ? day : best), null);
+  const peakHora = horas.reduce((best, hour) => (hour.ventas > (best?.ventas || 0) ? hour : best), null);
+
+  return {
+    totalV,
+    totalM,
+    totalD,
+    netV,
+    mpct,
+    n,
+    ticket,
+    delV,
+    locV,
+    delPct,
+    delN: delOrd.length,
+    locN: locOrd.length,
+    delDesc,
+    delM,
+    locTicket,
+    dias,
+    pagos,
+    topProds,
+    cats,
+    horas,
+    descs,
+    zonas,
+    platforms,
+    locComens,
+    locTiempo,
+    locRatio,
+    bestDay,
+    peakHora,
+    diasCount: dias.length
+  };
+}
+
+// ════════════════════════════════════════════════════
+//  RENDER MAIN
+// ════════════════════════════════════════════════════
+// Filter rows to only those belonging to selected locals
+function filterByLocals(rows) {
+  if (selectedLocals.size === 0 || selectedLocals.size === ALL_LOCATIONS.length) return rows;
+  return rows.filter((r) => selectedLocals.has(r.local));
+}
+
+function render() {
+  const { from, to } = getSelectedRange();
+  if (!from || !to) return;
+
+  const ords  = filterByLocals(filterDate(rawOrdenes, from, to));
+  const prods = filterByLocals(filterDate(rawProductos, from, to));
+  const metrics = calcMetrics(ords, prods);
+
+  renderStatusBar(metrics);
+
+  if (currentView === 'overview') renderOverview(metrics);
+  if (currentView === 'ventas') renderVentas(metrics);
+  if (currentView === 'productos') renderProductos(metrics, prods);
+  if (currentView === 'delivery') renderDelivery(metrics);
+  if (currentView === 'mesas') renderMesas(metrics);
+  if (currentView === 'exportar') renderExportar(metrics, ords, prods, from, to);
+  if (currentView === 'locales') renderLocales(ords, prods, from, to);
+}
+
+// ════════════════════════════════════════════════════
+//  VIEW: OVERVIEW
+// ════════════════════════════════════════════════════
+function renderOverview(metrics) {
+  set('ov-ventas', fmt(metrics.totalV));
+  set('ov-vsub', `${metrics.diasCount} días · ${metrics.n} órdenes`);
+  set('ov-ticket', fmt(metrics.ticket));
+  set('ov-margen', fmtPct(metrics.mpct));
+  set('ov-msub', `${fmt(metrics.totalM)} bruto`);
+  set('ov-ordenes', String(metrics.n));
+  set('ov-osub', `~${metrics.diasCount > 0 ? (metrics.n / metrics.diasCount).toFixed(1) : '0'} / día`);
+  set('ov-del', fmtPct(metrics.delPct));
+  set('ov-dsub', `delivery · ${(100 - metrics.delPct).toFixed(1).replace('.', ',')}% local`);
+  set('ov-dn', String(metrics.n));
+  set('ov-damt', fmt(metrics.delV));
+  set('ov-dsub2', `${metrics.delN} órdenes · ${metrics.delPct.toFixed(1)}%`);
+  set('ov-lamt', fmt(metrics.locV));
+  set('ov-lsub2', `${metrics.locN} órdenes · ${(100 - metrics.delPct).toFixed(1)}%`);
+
+  const maxVentas = Math.max(...metrics.dias.map((day) => day.ventas), 1);
+  setHTML(
+    'ov-split',
+    metrics.dias.map((day, index) => `
+      <div class="sr">
+        <div class="sl">${esc(dayLbl(day.fecha))}</div>
+        <div class="sbt"><div class="sbf" style="width:${((day.ventas / maxVentas) * 100).toFixed(0)}%;background:${BAR_COLORS[index % BAR_COLORS.length]}"></div></div>
+        <div class="sv">${fmt(day.ventas)}</div>
+      </div>
+    `).join(''),
+    '<div class="empty">sin ventas en período</div>'
+  );
+
+  const maxRev = metrics.topProds[0]?.rev || 1;
+  setHTML(
+    'ov-prods',
+    metrics.topProds.slice(0, 8).map((product, index) => `
+      <div class="pr">
+        <div class="prk">${String(index + 1).padStart(2, '0')}</div>
+        <div class="prw">
+          <div class="prn">${esc(product.name)}</div>
+          <div class="prt"><div class="prf" style="width:${((product.rev / maxRev) * 100).toFixed(0)}%;background:${BAR_COLORS[index % BAR_COLORS.length]}"></div></div>
+        </div>
+        <div><div class="prv">${fmtF(product.rev)}</div><div class="prq">${Math.round(product.qty)} uds</div></div>
+      </div>
+    `).join(''),
+    '<div class="empty">sin datos de productos</div>'
+  );
+
+  setHTML(
+    'ov-pays',
+    metrics.pagos.slice(0, 6).map((payment, index) => `
+      <div class="pay">
+        <div class="pay-dot" style="background:${PAY_COLORS[index % PAY_COLORS.length]}"></div>
+        <div class="pay-name">${esc(payment.name)}</div>
+        <div class="pay-pct">${metrics.totalV > 0 ? ((payment.amount / metrics.totalV) * 100).toFixed(1) : '0.0'}%</div>
+        <div class="pay-amt">${fmtF(payment.amount)}</div>
+      </div>
+    `).join(''),
+    '<div class="empty">sin medios de pago en período</div>'
+  );
+
+  upd('c-diario', {
+    labels: metrics.dias.map((day) => dayLbl(day.fecha)),
+    datasets: [
+      {
+        label: 'Delivery',
+        data: metrics.dias.map((day) => day.del),
+        backgroundColor: makeGrad('c-diario', 'rgba(232,168,76,0.7)', 'rgba(232,168,76,0.1)'),
+        borderColor: '#e8a84c',
+        borderWidth: 1,
+        borderRadius: 3,
+        borderSkipped: false
+      },
+      {
+        label: 'Local',
+        data: metrics.dias.map((day) => day.loc),
+        backgroundColor: makeGrad('c-diario', 'rgba(76,158,190,0.5)', 'rgba(76,158,190,0.05)'),
+        borderColor: '#4c9ebe',
+        borderWidth: 1,
+        borderRadius: 3,
+        borderSkipped: false
+      }
+    ]
+  });
+
+  upd('c-canal', {
+    labels: ['Delivery', 'Local'],
+    datasets: [{
+      data: [metrics.delN, metrics.locN],
+      backgroundColor: ['#e8a84c', '#4c9ebe'],
+      borderColor: '#161616',
+      borderWidth: 3,
+      hoverOffset: 4
+    }]
+  });
+
+  upd('c-pago', {
+    labels: metrics.pagos.slice(0, 6).map((payment) => payment.name),
+    datasets: [{
+      data: metrics.pagos.slice(0, 6).map((payment) => payment.amount),
+      backgroundColor: PAY_COLORS.slice(0, Math.min(metrics.pagos.length, 6)),
+      borderRadius: 3,
+      borderSkipped: false
+    }]
+  });
+}
+
+// ════════════════════════════════════════════════════
+//  VIEW: VENTAS
+// ════════════════════════════════════════════════════
+function renderVentas(metrics) {
+  set('vn-ventas', fmt(metrics.totalV));
+  set('vn-vsub', `${metrics.diasCount} días · ${metrics.n} órdenes`);
+  set('vn-best', metrics.bestDay ? fmt(metrics.bestDay.ventas) : '—');
+  set('vn-bestsub', metrics.bestDay ? dayLbl(metrics.bestDay.fecha) : '—');
+  set('vn-desc', `-${fmt(metrics.totalD)}`);
+  set('vn-descsub', `${metrics.totalV > 0 ? ((metrics.totalD / metrics.totalV) * 100).toFixed(1) : '0.0'}% del total`);
+  set('vn-hora', metrics.peakHora ? metrics.peakHora.hora : '—');
+  set('vn-avg', metrics.diasCount > 0 ? fmt(metrics.totalV / metrics.diasCount) : '—');
+
+  const maxHoraVenta = Math.max(...metrics.horas.map((hour) => hour.ventas), 0);
+
+  upd('c-hora', {
+    labels: metrics.horas.map((hour) => hour.hora),
+    datasets: [{
+      label: 'Ventas',
+      data: metrics.horas.map((hour) => hour.ventas),
+      backgroundColor: metrics.horas.map((hour) => hour.ventas === maxHoraVenta ? '#e8a84c' : 'rgba(232,168,76,0.25)'),
+      borderRadius: 3,
+      borderSkipped: false
+    }]
+  });
+
+  setHTML(
+    'vn-desc-list',
+    metrics.descs.map((discount, index) => `
+      <div class="pay">
+        <div class="pay-dot" style="background:${PAY_COLORS[index % PAY_COLORS.length]}"></div>
+        <div class="pay-name" style="font-size:11px">${esc(discount.name)}</div>
+        <div class="pay-amt" style="color:var(--accent2)">-${fmtF(discount.amount)}</div>
+      </div>
+    `).join(''),
+    '<div class="empty">sin descuentos en período</div>'
+  );
+
+  setHTML(
+    'vn-tabla',
+    metrics.dias.map((day) => `
+      <tr>
+        <td class="mono">${esc(dayLbl(day.fecha))}</td>
+        <td class="mono">${day.n}</td>
+        <td class="mono">${fmtF(day.ventas)}</td>
+        <td class="mono" style="color:var(--accent)">${fmtF(day.del)}</td>
+        <td class="mono" style="color:var(--accent3)">${fmtF(day.loc)}</td>
+        <td class="mono" style="color:var(--green)">${day.ventas > 0 ? ((day.margen / day.ventas) * 100).toFixed(1) : '0.0'}%</td>
+        <td class="mono muted">${fmtF(day.ticket)}</td>
+      </tr>
+    `).join(''),
+    '<tr><td colspan="7" class="empty">sin datos</td></tr>'
+  );
+}
+
+// ════════════════════════════════════════════════════
+//  VIEW: PRODUCTOS
+// ════════════════════════════════════════════════════
+function renderProductos(metrics, products) {
+  const distinct = new Set(products.map((product) => String(product.producto_nombre || '').trim()).filter(Boolean)).size;
+  const units = sum(products, 'cantidad');
+  const top1 = metrics.topProds[0];
+  const cat1 = metrics.cats[0];
+
+  set('pr-distinct', String(distinct));
+  set('pr-units', String(Math.round(units)));
+  set('pr-usub', `en ${metrics.n} órdenes`);
+  set('pr-top1', top1 ? shortWords(top1.name, 2) : '—');
+  set('pr-top1sub', top1 ? `${fmtF(top1.rev)} · ${Math.round(top1.qty)} uds` : '—');
+  set('pr-cat1', cat1 ? shortWords(cat1.name, 1) : '—');
+  set('pr-cat1sub', cat1 ? fmtF(cat1.rev) : '—');
+  set('pr-tprod', distinct > 0 ? fmt(sum(products, 'cobrado_prod') / distinct) : '—');
+
+  const maxRev = metrics.topProds[0]?.rev || 1;
+
+  setHTML(
+    'pr-list',
+    metrics.topProds.map((product, index) => `
+      <div class="pr">
+        <div class="prk">${String(index + 1).padStart(2, '0')}</div>
+        <div class="prw">
+          <div class="prn">${esc(product.name)}</div>
+          <div class="prt"><div class="prf" style="width:${((product.rev / maxRev) * 100).toFixed(0)}%;background:${BAR_COLORS[Math.min(index, BAR_COLORS.length - 1)]}"></div></div>
+        </div>
+        <div><div class="prv">${fmtF(product.rev)}</div><div class="prq">${Math.round(product.qty)} uds</div></div>
+      </div>
+    `).join(''),
+    '<div class="empty">sin datos de productos</div>'
+  );
+
+  upd('c-cat', {
+    labels: metrics.cats.slice(0, 6).map((category) => category.name),
+    datasets: [{
+      data: metrics.cats.slice(0, 6).map((category) => category.rev),
+      backgroundColor: PAY_COLORS.slice(0, Math.min(metrics.cats.length, PAY_COLORS.length)),
+      borderColor: '#161616',
+      borderWidth: 2,
+      hoverOffset: 4
+    }]
+  });
+
+  const totalCat = sum(metrics.cats, 'rev') || 1;
+
+  setHTML(
+    'pr-cats',
+    metrics.cats.slice(0, 8).map((category, index) => `
+      <div class="pay">
+        <div class="pay-dot" style="background:${PAY_COLORS[index % PAY_COLORS.length]}"></div>
+        <div class="pay-name" style="font-size:11px">${esc(category.name)}</div>
+        <div class="pay-pct">${((category.rev / totalCat) * 100).toFixed(1)}%</div>
+        <div class="pay-amt">${fmtF(category.rev)}</div>
+      </div>
+    `).join(''),
+    '<div class="empty">sin categorías en período</div>'
+  );
+}
+
+// ════════════════════════════════════════════════════
+//  VIEW: DELIVERY
+// ════════════════════════════════════════════════════
+function renderDelivery(metrics) {
+  const deliveryTicket = metrics.delN > 0 ? metrics.delV / metrics.delN : 0;
+  const platforms = metrics.platforms.length > 0
+    ? metrics.platforms
+    : [{ name: 'Delivery', amount: metrics.delV, n: metrics.delN }];
+
+  set('dl-ventas', fmt(metrics.delV));
+  set('dl-vsub', `${metrics.delN} órdenes`);
+  set('dl-pct', fmtPct(metrics.delPct));
+  set('dl-ticket', fmt(deliveryTicket));
+  set('dl-orders', String(metrics.delN));
+  set('dl-osub', `vs ${metrics.locN} locales`);
+  set('dl-desc', `-${fmt(metrics.delDesc)}`);
+
+  upd('c-plat', {
+    labels: platforms.slice(0, 5).map((platform) => platform.name),
+    datasets: [{
+      data: platforms.slice(0, 5).map((platform) => platform.amount),
+      backgroundColor: PAY_COLORS.slice(0, Math.min(platforms.length, 5)),
+      borderRadius: 3,
+      borderSkipped: false
+    }]
+  });
+
+  setHTML(
+    'dl-split',
+    metrics.dias.map((day) => `
+      <div style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted)">${esc(dayLbl(day.fecha))}</span>
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted)">${day.ventas > 0 ? ((day.del / day.ventas) * 100).toFixed(0) : '0'}% delivery</span>
+        </div>
+        <div style="height:4px;background:var(--bg3);border-radius:2px;overflow:hidden">
+          <div style="height:100%;width:${day.ventas > 0 ? ((day.del / day.ventas) * 100).toFixed(0) : 0}%;background:var(--accent);border-radius:2px"></div>
+        </div>
+      </div>
+    `).join(''),
+    '<div class="empty">sin ventas delivery en período</div>'
+  );
+
+  setHTML(
+    'dl-metrics',
+    [
+      { lbl: 'Ticket prom. delivery', val: fmt(deliveryTicket) },
+      { lbl: 'Ticket prom. local', val: fmt(metrics.locTicket) },
+      { lbl: '% descuentos delivery', val: `${metrics.delV > 0 ? ((metrics.delDesc / metrics.delV) * 100).toFixed(1) : '0.0'}%` },
+      { lbl: 'Margen delivery', val: metrics.delV > 0 ? `${((metrics.delM / metrics.delV) * 100).toFixed(1)}%` : '—' }
+    ].map((tile) => `
+      <div class="tile">
+        <div class="tile-lbl">${esc(tile.lbl)}</div>
+        <div class="tile-val">${esc(tile.val)}</div>
+      </div>
+    `).join(''),
+    '<div class="empty">sin métricas delivery en período</div>'
+  );
+}
+
+// ════════════════════════════════════════════════════
+//  VIEW: MESAS
+// ════════════════════════════════════════════════════
+function renderMesas(metrics) {
+  set('ms-ventas', fmt(metrics.locV));
+  set('ms-vsub', `${metrics.locN} órdenes locales`);
+  set('ms-pax', String(Math.round(metrics.locComens)));
+  set('ms-tpax', metrics.locComens > 0 ? fmt(metrics.locV / metrics.locComens) : '—');
+  set('ms-tiempo', `${Math.round(metrics.locTiempo)} min`);
+  set('ms-ratio', metrics.locRatio.toFixed(1));
+
+  setHTML(
+    'ms-zonas',
+    metrics.zonas.map((zone, index) => `
+      <div class="pay">
+        <div class="pay-dot" style="background:${PAY_COLORS[index % PAY_COLORS.length]}"></div>
+        <div class="pay-name">${esc(zone.name)}</div>
+        <div class="pay-pct">${zone.n} órd.</div>
+        <div class="pay-amt">${fmtF(zone.ventas)}</div>
+      </div>
+    `).join(''),
+    '<div class="empty">sin datos de mesas locales en período</div>'
+  );
+
+  upd('c-mesas', {
+    labels: metrics.dias.map((day) => dayLbl(day.fecha)),
+    datasets: [
+      {
+        label: 'Local',
+        data: metrics.dias.map((day) => day.loc),
+        backgroundColor: 'rgba(76,158,190,0.6)',
+        borderColor: '#4c9ebe',
+        borderWidth: 1,
+        borderRadius: 3,
+        borderSkipped: false
+      },
+      {
+        label: 'Delivery',
+        data: metrics.dias.map((day) => day.del),
+        backgroundColor: 'rgba(232,168,76,0.3)',
+        borderColor: '#e8a84c',
+        borderWidth: 1,
+        borderRadius: 3,
+        borderSkipped: false
+      }
+    ]
+  });
+}
+
+// ════════════════════════════════════════════════════
+//  VIEW: EXPORTAR
+// ════════════════════════════════════════════════════
+function renderExportar(metrics, ords, prods, from, to) {
+  set('ex-period', `${from} → ${to}`);
+  set('ex-ordenes-info', `${ords.length} órdenes · ${metrics.diasCount} días`);
+  set('ex-prods-info', `${prods.length} líneas de producto`);
+}
+
+function exportCSV(type) {
+  const { from, to } = getSelectedRange();
+  if (!from || !to) return;
+
+  const ords = filterDate(rawOrdenes, from, to);
+  const prods = filterDate(rawProductos, from, to);
+
+  let rows = [];
+  let filename = '';
+  let headers = [];
+
+  if (type === 'ordenes') {
+    headers = ['fecha','tipo','caja','cobrado','costo_total','margen_bruto','margen_pct','medio_pago','orden_id','comensales'];
+    rows = ords.map((order) => [
+      normalizeDateValue(order.fecha),
+      order.tipo,
+      order.caja,
+      order.cobrado,
+      order.costo_total,
+      order.margen_bruto,
+      order.margen_pct,
+      order.medio_pago,
+      order.orden_id,
+      order.comensales
+    ]);
+    filename = `ordenes_${from}_${to}.csv`;
+  } else if (type === 'productos') {
+    headers = ['fecha','producto_nombre','categoria','cantidad','cobrado_prod','costo_total_prod','local'];
+    rows = prods.map((product) => [
+      normalizeDateValue(product.fecha),
+      product.producto_nombre,
+      product.categoria,
+      product.cantidad,
+      product.cobrado_prod,
+      product.costo_total_prod,
+      product.local
+    ]);
+    filename = `productos_${from}_${to}.csv`;
+  } else {
+    const metrics = calcMetrics(ords, prods);
+    headers = ['fecha','ordenes','ventas','delivery','local','margen_bruto','margen_pct','ticket_promedio'];
+    rows = metrics.dias.map((day) => [
+      day.fecha,
+      day.n,
+      day.ventas,
+      day.del,
+      day.loc,
+      day.margen,
+      day.ventas > 0 ? ((day.margen / day.ventas) * 100).toFixed(1) : 0,
+      day.ticket.toFixed(0)
+    ]);
+    filename = `resumen_${from}_${to}.csv`;
+  }
+
+  const csv = [headers, ...rows]
+    .map((row) => row.map((value) => `"${csvSafe(value).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+// ════════════════════════════════════════════════════
+//  VIEW: POR LOCAL
+// ════════════════════════════════════════════════════
+function renderLocales(ords, prods, from, to) {
+  // getActiveLocations() returns string[] of local names
+  const activeLocals = ALL_LOCATIONS.filter(
+    (name) => selectedLocals.size === 0 || selectedLocals.has(name)
+  );
+
+  // Build per-local metrics (row.local is the identifier)
+  const localStats = activeLocals.map((localName) => {
+    const locOrds  = ords.filter((o) => o.local === localName);
+    const locProds = prods.filter((p) => p.local === localName);
+    const ventas   = sum(locOrds, 'cobrado');
+    const margen   = sum(locOrds, 'margen_bruto');
+    const n        = locOrds.length;
+    const ticket   = n > 0 ? ventas / n : 0;
+    const mpct     = ventas > 0 ? (margen / ventas) * 100 : 0;
+    const delOrd   = locOrds.filter((o) => normCanal(o.tipo) === 'Delivery');
+    const delV     = sum(delOrd, 'cobrado');
+    const delPct   = ventas > 0 ? (delV / ventas) * 100 : 0;
+    return { id: localName, name: localName, ventas, margen, n, ticket, mpct, delPct };
+  }).sort((a, b) => b.ventas - a.ventas);
+
+  const totalV   = sum(localStats, 'ventas');
+  const totalM   = sum(localStats, 'margen');
+  const totalN   = sum(localStats, 'n');
+  const avgTicket = totalN > 0 ? totalV / totalN : 0;
+  const avgMpct  = totalV > 0 ? (totalM / totalV) * 100 : 0;
+  const topLocal = localStats[0];
+
+  // KPIs
+  set('lc-count', String(activeLocals.length));
+  set('lc-top',   topLocal ? topLocal.name : '—');
+  set('lc-topsub', topLocal ? `${fmt(topLocal.ventas)} · ${topLocal.n} órd.` : '—');
+  set('lc-ventas', fmt(totalV));
+  set('lc-vsub', `${totalN} órdenes · ${activeLocals.length} locales`);
+  set('lc-ticket', fmt(avgTicket));
+  set('lc-margen', fmtPct(avgMpct));
+
+  // Chart
+  upd('c-locales', {
+    labels: localStats.map((l) => l.name),
+    datasets: [{
+      label: 'Ventas',
+      data: localStats.map((l) => l.ventas),
+      backgroundColor: localStats.map((_, i) => PAY_COLORS[i % PAY_COLORS.length]),
+      borderRadius: 4,
+      borderSkipped: false
+    }]
+  });
+
+  // Ranking table
+  setHTML(
+    'lc-tabla',
+    localStats.map((l, i) => `
+      <tr>
+        <td class="mono muted">${String(i + 1).padStart(2, '0')}</td>
+        <td style="font-weight:500">${esc(l.name)}</td>
+        <td class="mono">${fmtF(l.ventas)}</td>
+        <td class="mono">${l.n}</td>
+        <td class="mono muted">${fmtF(l.ticket)}</td>
+        <td class="mono" style="color:var(--green)">${l.mpct.toFixed(1)}%</td>
+        <td class="mono" style="color:var(--accent)">${l.delPct.toFixed(0)}%</td>
+      </tr>
+    `).join(''),
+    '<tr><td colspan="7" class="empty">sin datos</td></tr>'
+  );
+
+  // Split tiles
+  setHTML(
+    'lc-split',
+    localStats.map((l) => `
+      <div class="tile">
+        <div class="tile-lbl">${esc(l.name)}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="font-family:var(--font-mono);font-size:14px;font-weight:700;color:var(--accent)">${l.delPct.toFixed(0)}%</div>
+          <div style="font-size:11px;color:var(--muted)">delivery</div>
+        </div>
+        <div style="height:4px;background:var(--bg2);border-radius:2px;overflow:hidden;margin-bottom:8px">
+          <div style="height:100%;width:${l.delPct.toFixed(0)}%;background:var(--accent);border-radius:2px"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <div style="font-size:10px;color:var(--muted);font-family:var(--font-mono)">${fmtF(sum([l],'ventas'))} total</div>
+          <div style="font-size:10px;color:var(--muted);font-family:var(--font-mono)">${l.n} órd.</div>
+        </div>
+      </div>
+    `).join(''),
+    '<div class="empty">sin datos de locales</div>'
+  );
+}
+
+// ════════════════════════════════════════════════════
+//  STATUS BAR
+// ════════════════════════════════════════════════════
+function renderStatusBar(metrics) {
+  set('sb-scope', String(getActiveLocations().length || ALL_LOCATIONS.length));
+  set('sb-del', fmt(metrics.delV));
+  set('sb-loc', fmt(metrics.locV));
+  set('sb-mar', fmtPct(metrics.mpct));
+  set('sb-dsc', `-${fmt(metrics.totalD)}`);
+  set(
+    'sb-upd',
+    lastSyncAt
+      ? lastSyncAt.toLocaleString('es-CL', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      : '—'
+  );
+}
+
+// ════════════════════════════════════════════════════
+//  CHARTS
+// ════════════════════════════════════════════════════
+const chartConfigs = {
+  'c-diario': {
+    type: 'bar',
+    opts: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', align: 'end', labels: { boxWidth: 8, boxHeight: 8, padding: 14 } }, tooltip: tooltipOpts() },
+      scales: { x: { stacked: true, ...xScale() }, y: { stacked: true, ...yScale((value) => `$${(value / 1000).toFixed(0)}K`) } }
+    }
+  },
+  'c-canal': {
+    type: 'doughnut',
+    opts: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '72%',
+      plugins: { legend: { display: false }, tooltip: tooltipOpts() }
+    }
+  },
+  'c-pago': {
+    type: 'bar',
+    opts: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: tooltipOpts() },
+      scales: {
+        x: { ...xScale(), ticks: { ...xScale().ticks, callback: (value) => `$${(value / 1e6).toFixed(1)}M` } },
+        y: { grid: { display: false }, border: { display: false }, ticks: { color: '#6b6860' } }
+      }
+    }
+  },
+  'c-hora': {
+    type: 'bar',
+    opts: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: tooltipOpts() },
+      scales: { x: { ...xScale() }, y: { ...yScale((value) => `$${(value / 1000).toFixed(0)}K`) } }
+    }
+  },
+  'c-cat': {
+    type: 'doughnut',
+    opts: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '60%',
+      plugins: { legend: { display: false }, tooltip: tooltipOpts() }
+    }
+  },
+  'c-plat': {
+    type: 'bar',
+    opts: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: tooltipOpts() },
+      scales: {
+        x: { ...xScale(), ticks: { ...xScale().ticks, callback: (value) => `$${(value / 1e6).toFixed(1)}M` } },
+        y: { grid: { display: false }, border: { display: false }, ticks: { color: '#6b6860' } }
+      }
+    }
+  },
+  'c-locales': {
+    type: 'bar',
+    opts: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: tooltipOpts() },
+      scales: {
+        x: { ...xScale(), ticks: { ...xScale().ticks, callback: (v) => `$${(v/1e6).toFixed(1)}M` } },
+        y: { grid: { display: false }, border: { display: false }, ticks: { color: '#6b6860' } }
+      }
+    }
+  },
+  'c-mesas': {
+    type: 'bar',
+    opts: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', align: 'end', labels: { boxWidth: 8, boxHeight: 8, padding: 14 } }, tooltip: tooltipOpts() },
+      scales: { x: { stacked: true, ...xScale() }, y: { stacked: true, ...yScale((value) => `$${(value / 1000).toFixed(0)}K`) } }
+    }
+  }
+};
+
+function tooltipOpts() {
+  return {
+    backgroundColor: '#1a1a1a',
+    borderColor: '#2a2a2a',
+    borderWidth: 1,
+    titleColor: '#f0ede8',
+    bodyColor: '#6b6860',
+    padding: 10,
+    callbacks: {
+      label: (ctx) => ` ${ctx.dataset.label || ''}: $${(ctx.raw || 0).toLocaleString('es-CL')}`
+    }
+  };
+}
+
+function xScale() {
+  return {
+    grid: { color: 'rgba(42,42,42,0.5)', drawBorder: false },
+    border: { display: false },
+    ticks: { color: '#6b6860', font: { size: 10 } }
+  };
+}
+
+function yScale(callback) {
+  return {
+    grid: { color: 'rgba(42,42,42,0.5)', drawBorder: false },
+    border: { display: false },
+    ticks: { color: '#6b6860', font: { size: 10 }, callback: callback || undefined }
+  };
+}
+
+function initAllCharts() {
+  Object.entries(chartConfigs).forEach(([id, config]) => {
+    const canvas = document.getElementById(id);
+    if (!canvas) return;
+
+    charts[id] = new Chart(canvas.getContext('2d'), {
+      type: config.type,
+      data: { labels: [], datasets: [] },
+      options: config.opts
+    });
+  });
+}
+
+function upd(id, data) {
+  const chart = charts[id];
+  if (!chart) return;
+
+  chart.data.labels = data.labels;
+  chart.data.datasets = data.datasets;
+  chart.update('none');
+}
+
+function makeGrad(id, startColor, endColor) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return startColor;
+
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, 220);
+  gradient.addColorStop(0, startColor);
+  gradient.addColorStop(1, endColor);
+  return gradient;
+}
+
+// ════════════════════════════════════════════════════
+//  UI HELPERS
+// ════════════════════════════════════════════════════
+function set(id, value) {
+  const element = document.getElementById(id);
+  if (element) element.textContent = value;
+}
+
+function setHTML(id, html, fallback = EMPTY_HTML) {
+  const element = document.getElementById(id);
+  if (!element) return;
+
+  const trimmed = String(html || '').trim();
+  element.innerHTML = trimmed || fallback;
+}
+
+function setLoading(isLoading) {
+  const overlay = document.getElementById('loading-overlay');
+  if (!overlay) return;
+
+  if (isLoading) {
+    overlay.innerHTML = LOADING_HTML;
+    overlay.style.display = 'flex';
+    return;
+  }
+
+  overlay.style.display = 'none';
+}
+
+function showError(message) {
+  const overlay = document.getElementById('loading-overlay');
+  if (!overlay) return;
+
+  overlay.innerHTML = `
+    <div style="text-align:center;max-width:420px;padding:24px">
+      <div style="font-family:var(--font-mono);font-size:11px;color:var(--accent2);margin-bottom:12px;letter-spacing:0.12em">ERROR DE CONEXIÓN</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:20px">${esc(message)}</div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:16px;text-align:left;margin-bottom:16px">
+        <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);letter-spacing:0.1em;margin-bottom:10px">PARA CONECTAR:</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.9">
+          1. Abre tu Google Sheet<br>
+          2. Clic en <b style="color:var(--text)">Compartir</b> → <b style="color:var(--text)">Cualquiera con el enlace</b><br>
+          3. Rol: <b style="color:var(--text)">Lector</b> para esta visualización<br>
+          4. Guarda y recarga esta página
+        </div>
+      </div>
+      <button onclick="location.reload()" style="background:var(--accent);color:#000;border:none;padding:9px 24px;border-radius:4px;font-family:var(--font-mono);font-size:10px;cursor:pointer;letter-spacing:0.08em;font-weight:700">↺ REINTENTAR</button>
+    </div>
+  `;
+  overlay.style.display = 'flex';
+}
+
+</script>
+</body>
+</html>
