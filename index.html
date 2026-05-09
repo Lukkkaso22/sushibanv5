@@ -861,12 +861,32 @@ async function fetchSheet(sheetId, name, options = {}) {
 }
 
 // Fetches the master sheet — single source of truth for all locals
+// ── Fetch via Vercel API (sin límite de filas) ──────────────────
 async function fetchMasterSheet(options = {}) {
+  const { force, dateFrom, dateTo } = options;
+  const cacheKey = `api::${dateFrom || ''}::${dateTo || ''}`;
+
+  if (!force && sheetCache.has(cacheKey)) {
+    return sheetCache.get(cacheKey);
+  }
+
+  const buildUrl = (sheet) => {
+    const p = new URLSearchParams({ sheet });
+    if (dateFrom) p.set('from', dateFrom);
+    if (dateTo)   p.set('to',   dateTo);
+    return `/api/sheets?${p}`;
+  };
+
+  const fetchOpt = { cache: force ? 'no-store' : 'default' };
+
   const [ordenes, productos] = await Promise.all([
-    fetchSheet(MASTER_SHEET_ID, SHEET_ORDENES, options),
-    fetchSheet(MASTER_SHEET_ID, SHEET_PRODUCTOS, options)
+    fetch(buildUrl('📋 ordenes'),   fetchOpt).then(r => { if (!r.ok) throw new Error(`API ordenes: ${r.status}`);   return r.json(); }),
+    fetch(buildUrl('🛍️ productos'), fetchOpt).then(r => { if (!r.ok) throw new Error(`API productos: ${r.status}`); return r.json(); })
   ]);
-  return { ordenes, productos };
+
+  const result = { ordenes: Array.isArray(ordenes) ? ordenes : [], productos: Array.isArray(productos) ? productos : [] };
+  sheetCache.set(cacheKey, result);
+  return result;
 }
 
 async function loadData(options = {}) {
@@ -875,9 +895,10 @@ async function loadData(options = {}) {
 
   try {
     closeLocationPanel();
-    // Pass the selected from-date so gviz filters server-side
+    // Pass date range to API for server-side filtering
     const dateFrom = document.getElementById('date-from')?.value || '';
-    const fetchOpts = { ...options, dateFrom };
+    const dateTo   = document.getElementById('date-to')?.value   || '';
+    const fetchOpts = { ...options, dateFrom, dateTo };
     const { ordenes, productos } = await fetchMasterSheet(fetchOpts);
 
     rawOrdenes   = ordenes;
