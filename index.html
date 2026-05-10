@@ -889,7 +889,54 @@ async function fetchMasterSheet(options = {}) {
   sheetCache.set(cacheKey, result);
   return result;
 }
+function normalizarOrdenSushiban(o) {
+  const n = v => {
+    if (v === null || v === undefined || v === '') return 0;
+    if (typeof v === 'number') return v;
+    return Number(
+      String(v)
+        .replace(/\./g, '')
+        .replace(',', '.')
+        .replace(/[^\d.-]/g, '')
+    ) || 0;
+  };
 
+  const subtotalActual = n(o.subtotal);
+  const descuentosActual = n(o.descuentos);
+  const impuestosActual = n(o.impuestos);
+  const precioListaActual = n(o.precio_lista);
+  const cobradoActual = n(o.cobrado);
+  const costoTotalActual = n(o.costo_total);
+
+  const pareceDataCorrida =
+    precioListaActual > 0 &&
+    cobradoActual > 0 &&
+    costoTotalActual > 0 &&
+    Math.abs((precioListaActual - cobradoActual) - costoTotalActual) <= Math.max(100, precioListaActual * 0.03);
+
+  if (!pareceDataCorrida) {
+    return o;
+  }
+
+  const ventaReal = precioListaActual;
+  const costoProductos = cobradoActual;
+  const margenBruto = ventaReal - costoProductos;
+  const margenPct = ventaReal > 0 ? (margenBruto / ventaReal) * 100 : 0;
+
+  return {
+    ...o,
+
+    descuentos: subtotalActual,
+    impuestos: descuentosActual,
+    precio_lista: impuestosActual,
+    cobrado: ventaReal,
+    costo_total: costoProductos,
+    margen_bruto: margenBruto,
+    margen_pct: margenPct,
+
+    _corregido_schema: true
+  };
+}
 async function loadData(options = {}) {
   setLoading(true);
   let ok = false;
@@ -902,12 +949,12 @@ async function loadData(options = {}) {
     const fetchOpts = { ...options, dateFrom, dateTo };
     const { ordenes, productos } = await fetchMasterSheet(fetchOpts);
 
-    rawOrdenes   = ordenes;
+    rawOrdenes    = ordenes.map(normalizarOrdenSushiban);
     rawProductos = productos;
     lastSyncAt   = new Date();
 
     // Derive unique locals from data — sorted alphabetically
-    const newLocals = [...new Set(ordenes.map((r) => r.local).filter(Boolean))].sort();
+    const newLocals = [...new Set(rawOrdenes.map((r) => r.local).filter(Boolean))].sort();
     const isFirstLoad = ALL_LOCATIONS.length === 0;
     ALL_LOCATIONS = newLocals;
 
