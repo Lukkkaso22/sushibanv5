@@ -290,7 +290,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(0.5);cursor:
     </div>
     <div class="g2">
       <div class="panel">
-        <div class="ph"><div class="pt"><span>ventas diarias</span> · período</div><span class="pb o">CLP</span></div>
+        <div class="ph"><div class="pt"><span>ventas diarias</span> · vs semana anterior</div><span class="pb o">CLP</span></div>
         <div class="pc"><div class="cw" style="height:220px"><canvas id="c-diario"></canvas></div></div>
       </div>
       <div class="panel">
@@ -311,7 +311,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(0.5);cursor:
               </div>
             </div>
           </div>
-          <div class="dlbl">por día</div>
+          <div class="dlbl">medio de pago</div>
           <div id="ov-split"></div>
         </div>
       </div>
@@ -902,6 +902,9 @@ function normalizarOrdenSushiban(o) {
     ) || 0;
   };
 
+  const texto = v => String(v ?? '').trim();
+  const pareceNumero = v => /^-?\d+(?:[\.,]\d+)?\s*%?$/.test(texto(v));
+
   const subtotalActual = n(o.subtotal);
   const descuentosActual = n(o.descuentos);
   const impuestosActual = n(o.impuestos);
@@ -909,6 +912,19 @@ function normalizarOrdenSushiban(o) {
   const cobradoActual = n(o.cobrado);
   const costoTotalActual = n(o.costo_total);
 
+  /*
+    Detecta la estructura corrida que quedó desde Apps Script:
+    subtotal      <- descuentos
+    descuentos    <- impuestos
+    impuestos     <- venta bruta / precio lista
+    precio_lista  <- cobrado real
+    cobrado       <- costo productos
+    costo_total   <- margen bruto
+    margen_pct    <- medio de pago real
+    medio_pago    <- tipo de descuento
+    tipo_descuento<- minutos_mesa
+    minutos_mesa  <- hora_apertura
+  */
   const pareceDataCorrida =
     precioListaActual > 0 &&
     cobradoActual > 0 &&
@@ -924,6 +940,11 @@ function normalizarOrdenSushiban(o) {
   const margenBruto = ventaReal - costoProductos;
   const margenPct = ventaReal > 0 ? (margenBruto / ventaReal) * 100 : 0;
 
+  const medioPagoReal = !pareceNumero(o.margen_pct) ? texto(o.margen_pct) : texto(o.medio_pago);
+  const tipoDescuentoReal = texto(o.medio_pago);
+  const minutosMesaReal = n(o.tipo_descuento) || 0;
+  const horaAperturaReal = texto(o.minutos_mesa) || texto(o.hora_apertura);
+
   return {
     ...o,
 
@@ -935,10 +956,17 @@ function normalizarOrdenSushiban(o) {
     margen_bruto: margenBruto,
     margen_pct: margenPct,
 
-    _corregido_schema: true
+    medio_pago: medioPagoReal,
+    tipo_descuento: tipoDescuentoReal,
+    minutos_mesa: minutosMesaReal,
+    hora_apertura: horaAperturaReal,
+
+    _corregido_schema: true,
+    _medio_pago_original: o.margen_pct,
+    _tipo_descuento_original: o.medio_pago
   };
 }
-  function sbNum(v) {
+function sbNum(v) {
   if (v === null || v === undefined || v === '') return 0;
   if (typeof v === 'number') return v;
   return Number(
@@ -973,18 +1001,42 @@ function sbTextoPlano(v) {
 }
 
 function sbCanalOrden(o) {
+  return resolveChannel(o);
+}
+
+function sbMedioPagoOrden(o) {
+  return resolvePayment(o);
+}
+
+function isDiscountLabel(value) {
+  const t = sbTextoPlano(value);
+  return (
+    !t ||
+    t.includes('discount') ||
+    t.includes('descuento') ||
+    t.includes('menu_item') ||
+    t.includes('programa') ||
+    t.includes('promo') ||
+    t.includes('cupon') ||
+    t.includes('coupon')
+  );
+}
+
+function resolveChannel(order) {
   const texto = [
-    o.medio_pago,
-    o.caja,
-    o.tipo,
-    o.zona,
-    o.mesa
+    order.plataforma,
+    order.medio_pago,
+    order.caja,
+    order.tipo,
+    order.zona,
+    order.mesa
   ].map(sbTextoPlano).join(' ');
 
   const esDelivery =
     texto.includes('uber') ||
     texto.includes('ubereats') ||
     texto.includes('uber eats') ||
+    texto.includes('mercat') ||
     texto.includes('rappi') ||
     texto.includes('pedidosya') ||
     texto.includes('pedidos ya') ||
@@ -995,22 +1047,26 @@ function sbCanalOrden(o) {
   return esDelivery ? 'Delivery' : 'Local';
 }
 
-function sbMedioPagoOrden(o) {
-  const raw = String(o.medio_pago || '').trim();
+function resolvePayment(order) {
+  const candidates = [
+    order.medio_pago,
+    order.plataforma,
+    order.caja,
+    order.tipo
+  ];
 
-  if (!raw) return 'Sin medio de pago';
+  for (const candidate of candidates) {
+    if (isDiscountLabel(candidate)) continue;
+    const payment = normPago(candidate);
+    if (payment && payment !== 'Otro') return payment;
+  }
 
-  const t = sbTextoPlano(raw);
+  const platform = resolvePlatform(order);
+  if (platform && platform !== 'Delivery directo' && platform !== 'Local') return platform;
 
-  if (t.includes('uber')) return 'Uber Eats';
-  if (t.includes('rappi')) return 'Rappi';
-  if (t.includes('pedidos')) return 'PedidosYa';
-  if (t.includes('efectivo')) return 'Efectivo';
-  if (t.includes('tarjeta') || t.includes('transbank') || t.includes('debito') || t.includes('credito')) return 'Tarjeta';
-  if (t.includes('transfer')) return 'Transferencia';
-
-  return raw;
+  return 'Otro';
 }
+
 async function loadData(options = {}) {
   setLoading(true);
   let ok = false;
@@ -1101,28 +1157,53 @@ function normCanal(value) {
 function normPago(value) {
   const raw = String(value || '').trim();
   if (!raw) return 'Otro';
-  if (/uber/i.test(raw)) return 'UberEats';
-  if (/d[eé]bit/i.test(raw)) return 'Débito';
-  if (/cr[eé]dit/i.test(raw)) return 'Crédito';
-  if (/mercat/i.test(raw)) return 'Mercat';
-  if (/efectivo/i.test(raw)) return 'Efectivo';
-  if (/casa/i.test(raw)) return 'Cta. Casa';
-  return raw.split(' ')[0];
+
+  const t = sbTextoPlano(raw);
+  if (isDiscountLabel(raw)) return 'Otro';
+
+  if (t.includes('uber')) return 'Uber Eats';
+  if (t.includes('mercat')) return 'Mercat';
+  if (t.includes('rappi')) return 'Rappi';
+  if (t.includes('pedidos')) return 'PedidosYa';
+  if (t.includes('didi')) return 'DiDi';
+  if (t.includes('debit') || t.includes('debito')) return 'Débito';
+  if (t.includes('credit') || t.includes('credito')) return 'Crédito';
+  if (t.includes('transbank') || t.includes('tarjeta') || t.includes('webpay')) return 'Tarjeta';
+  if (t.includes('efectivo') || t.includes('cash')) return 'Efectivo';
+  if (t.includes('transfer')) return 'Transferencia';
+  if (t.includes('casa')) return 'Cta. Casa';
+
+  const descartables = ['local', 'delivery', 'mesa', 'salon', 'sala', 'comanda', 'cocina', 'bar', 'retiro'];
+  if (descartables.some((word) => t.includes(word))) return 'Otro';
+
+  return raw.split(',')[0].trim() || 'Otro';
 }
 
 function normPlatform(value) {
   const raw = String(value || '').trim();
   if (!raw) return 'Delivery directo';
-  if (/uber/i.test(raw)) return 'UberEats';
-  if (/mercat/i.test(raw)) return 'Mercat';
-  if (/rappi/i.test(raw)) return 'Rappi';
-  if (/pedido/i.test(raw)) return 'PedidosYa';
-  if (/whatsapp|web|direct|telefono|tel[eé]fono/i.test(raw)) return 'Delivery directo';
+
+  const t = sbTextoPlano(raw);
+  if (t.includes('uber')) return 'Uber Eats';
+  if (t.includes('mercat')) return 'Mercat';
+  if (t.includes('rappi')) return 'Rappi';
+  if (t.includes('pedidos')) return 'PedidosYa';
+  if (t.includes('didi')) return 'DiDi';
+  if (t.includes('whatsapp') || t.includes('web') || t.includes('direct') || t.includes('telefono')) return 'Delivery directo';
+
   return raw;
 }
 
 function resolvePlatform(order) {
-  return normPlatform(order.plataforma || order.caja || order.medio_pago || order.tipo);
+  const candidates = [order.plataforma, order.medio_pago, order.caja, order.tipo];
+
+  for (const candidate of candidates) {
+    if (isDiscountLabel(candidate)) continue;
+    const platform = normPlatform(candidate);
+    if (platform && platform !== 'Delivery directo' && platform !== 'Local') return platform;
+  }
+
+  return resolveChannel(order) === 'Delivery' ? 'Delivery directo' : 'Local';
 }
 
 function dateKey(row) {
@@ -1208,8 +1289,8 @@ function calcMetrics(ordenes, productos) {
   const ticket = n > 0 ? totalV / n : 0;
   const mpct = totalV > 0 ? (totalM / totalV) * 100 : 0;
 
-  const delOrd = ordenes.filter((order) => normCanal(order.tipo) === 'Delivery');
-  const locOrd = ordenes.filter((order) => normCanal(order.tipo) === 'Local');
+  const delOrd = ordenes.filter((order) => resolveChannel(order) === 'Delivery');
+  const locOrd = ordenes.filter((order) => resolveChannel(order) === 'Local');
   const delV = sum(delOrd, 'cobrado');
   const locV = sum(locOrd, 'cobrado');
   const delPct = totalV > 0 ? (delV / totalV) * 100 : 0;
@@ -1221,8 +1302,8 @@ function calcMetrics(ordenes, productos) {
   const dias = Object.entries(byDay)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([fecha, orders]) => {
-      const deliveryOrders = orders.filter((order) => normCanal(order.tipo) === 'Delivery');
-      const localOrders = orders.filter((order) => normCanal(order.tipo) === 'Local');
+      const deliveryOrders = orders.filter((order) => resolveChannel(order) === 'Delivery');
+      const localOrders = orders.filter((order) => resolveChannel(order) === 'Local');
       const ventas = sum(orders, 'cobrado');
 
       return {
@@ -1236,7 +1317,7 @@ function calcMetrics(ordenes, productos) {
       };
     });
 
-  const byPago = groupBy(ordenes, (order) => normPago(order.medio_pago));
+  const byPago = groupBy(ordenes, resolvePayment);
   const pagos = Object.entries(byPago)
     .map(([name, orders]) => ({ name, amount: sum(orders, 'cobrado') }))
     .sort((a, b) => b.amount - a.amount);
@@ -1354,9 +1435,14 @@ function render() {
   const prods = filterByLocals(filterDate(rawProductos, from, to));
   const metrics = calcMetrics(ords, prods);
 
+  const prevFrom = sbAddDays(from, -7);
+  const prevTo = sbAddDays(to, -7);
+  const prevOrds = filterByLocals(filterDate(rawOrdenesSemanaAnterior, prevFrom, prevTo));
+  const prevMetrics = calcMetrics(prevOrds, []);
+
   renderStatusBar(metrics);
 
-  if (currentView === 'overview') renderOverview(metrics);
+  if (currentView === 'overview') renderOverview(metrics, prevMetrics);
   if (currentView === 'ventas') renderVentas(metrics);
   if (currentView === 'productos') renderProductos(metrics, prods);
   if (currentView === 'delivery') renderDelivery(metrics);
@@ -1368,7 +1454,7 @@ function render() {
 // ════════════════════════════════════════════════════
 //  VIEW: OVERVIEW
 // ════════════════════════════════════════════════════
-function renderOverview(metrics) {
+function renderOverview(metrics, prevMetrics = null) {
   set('ov-ventas', fmt(metrics.totalV));
   set('ov-vsub', `${metrics.diasCount} días · ${metrics.n} órdenes`);
   set('ov-ticket', fmt(metrics.ticket));
@@ -1384,17 +1470,19 @@ function renderOverview(metrics) {
   set('ov-lamt', fmt(metrics.locV));
   set('ov-lsub2', `${metrics.locN} órdenes · ${(100 - metrics.delPct).toFixed(1)}%`);
 
-  const maxVentas = Math.max(...metrics.dias.map((day) => day.ventas), 1);
+  const totalPagos = metrics.pagos.reduce((acc, payment) => acc + payment.amount, 0) || metrics.totalV || 1;
+  const maxPago = Math.max(...metrics.pagos.map((payment) => payment.amount), 1);
+
   setHTML(
     'ov-split',
-    metrics.dias.map((day, index) => `
+    metrics.pagos.slice(0, 6).map((payment, index) => `
       <div class="sr">
-        <div class="sl">${esc(dayLbl(day.fecha))}</div>
-        <div class="sbt"><div class="sbf" style="width:${((day.ventas / maxVentas) * 100).toFixed(0)}%;background:${BAR_COLORS[index % BAR_COLORS.length]}"></div></div>
-        <div class="sv">${fmt(day.ventas)}</div>
+        <div class="sl">${esc(payment.name)}</div>
+        <div class="sbt"><div class="sbf" style="width:${((payment.amount / maxPago) * 100).toFixed(0)}%;background:${PAY_COLORS[index % PAY_COLORS.length]}"></div></div>
+        <div class="sv">${fmt(payment.amount)}</div>
       </div>
     `).join(''),
-    '<div class="empty">sin ventas en período</div>'
+    '<div class="empty">sin medios de pago en período</div>'
   );
 
   const maxRev = metrics.topProds[0]?.rev || 1;
@@ -1419,33 +1507,42 @@ function renderOverview(metrics) {
       <div class="pay">
         <div class="pay-dot" style="background:${PAY_COLORS[index % PAY_COLORS.length]}"></div>
         <div class="pay-name">${esc(payment.name)}</div>
-        <div class="pay-pct">${metrics.totalV > 0 ? ((payment.amount / metrics.totalV) * 100).toFixed(1) : '0.0'}%</div>
+        <div class="pay-pct">${totalPagos > 0 ? ((payment.amount / totalPagos) * 100).toFixed(1) : '0.0'}%</div>
         <div class="pay-amt">${fmtF(payment.amount)}</div>
       </div>
     `).join(''),
     '<div class="empty">sin medios de pago en período</div>'
   );
 
+  const prevByCurrentDate = new Map(
+    (prevMetrics?.dias || []).map((day) => [sbAddDays(day.fecha, 7), day.ventas])
+  );
+
   upd('c-diario', {
     labels: metrics.dias.map((day) => dayLbl(day.fecha)),
     datasets: [
       {
-        label: 'Delivery',
-        data: metrics.dias.map((day) => day.del),
-        backgroundColor: makeGrad('c-diario', 'rgba(232,168,76,0.7)', 'rgba(232,168,76,0.1)'),
+        label: 'Período actual',
+        data: metrics.dias.map((day) => day.ventas),
         borderColor: '#e8a84c',
-        borderWidth: 1,
-        borderRadius: 3,
-        borderSkipped: false
+        backgroundColor: 'rgba(232,168,76,0.12)',
+        borderWidth: 2,
+        tension: 0.35,
+        fill: false,
+        pointRadius: 3,
+        pointHoverRadius: 5
       },
       {
-        label: 'Local',
-        data: metrics.dias.map((day) => day.loc),
-        backgroundColor: makeGrad('c-diario', 'rgba(76,158,190,0.5)', 'rgba(76,158,190,0.05)'),
+        label: 'Semana anterior',
+        data: metrics.dias.map((day) => prevByCurrentDate.get(day.fecha) || 0),
         borderColor: '#4c9ebe',
-        borderWidth: 1,
-        borderRadius: 3,
-        borderSkipped: false
+        backgroundColor: 'rgba(76,158,190,0.10)',
+        borderWidth: 2,
+        borderDash: [5, 5],
+        tension: 0.35,
+        fill: false,
+        pointRadius: 3,
+        pointHoverRadius: 5
       }
     ]
   });
@@ -1453,7 +1550,7 @@ function renderOverview(metrics) {
   upd('c-canal', {
     labels: ['Delivery', 'Local'],
     datasets: [{
-      data: [metrics.delN, metrics.locN],
+      data: [metrics.delV, metrics.locV],
       backgroundColor: ['#e8a84c', '#4c9ebe'],
       borderColor: '#161616',
       borderWidth: 3,
@@ -1796,7 +1893,7 @@ function renderLocales(ords, prods, from, to) {
     const n        = locOrds.length;
     const ticket   = n > 0 ? ventas / n : 0;
     const mpct     = ventas > 0 ? (margen / ventas) * 100 : 0;
-    const delOrd   = locOrds.filter((o) => normCanal(o.tipo) === 'Delivery');
+    const delOrd   = locOrds.filter((o) => resolveChannel(o) === 'Delivery');
     const delV     = sum(delOrd, 'cobrado');
     const delPct   = ventas > 0 ? (delV / ventas) * 100 : 0;
     return { id: localName, name: localName, ventas, margen, n, ticket, mpct, delPct };
@@ -1898,12 +1995,13 @@ function renderStatusBar(metrics) {
 // ════════════════════════════════════════════════════
 const chartConfigs = {
   'c-diario': {
-    type: 'bar',
+    type: 'line',
     opts: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
       plugins: { legend: { position: 'top', align: 'end', labels: { boxWidth: 8, boxHeight: 8, padding: 14 } }, tooltip: tooltipOpts() },
-      scales: { x: { stacked: true, ...xScale() }, y: { stacked: true, ...yScale((value) => `$${(value / 1000).toFixed(0)}K`) } }
+      scales: { x: { ...xScale() }, y: { ...yScale((value) => `$${(value / 1000).toFixed(0)}K`) } }
     }
   },
   'c-canal': {
