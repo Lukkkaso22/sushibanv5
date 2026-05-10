@@ -877,7 +877,8 @@ async function fetchMasterSheet(options = {}) {
     return `/api/sheets?${p}`;
   };
 
-  const fetchOpt = { cache: force ? 'no-store' : 'default' };
+  // 'reload' bypasses both browser cache AND Vercel CDN cache
+  const fetchOpt = { cache: 'reload' };
 
   const [ordenes, productos] = await Promise.all([
     fetch(buildUrl('📋 ordenes'),   fetchOpt).then(r => { if (!r.ok) throw new Error(`API ordenes: ${r.status}`);   return r.json(); }),
