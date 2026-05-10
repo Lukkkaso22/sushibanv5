@@ -2,12 +2,31 @@
 // Lee Google Sheets con la API oficial (sin límite de filas)
 // Variables de entorno requeridas en Vercel:
 //   GOOGLE_API_KEY  → API key de Google Cloud (Sheets API habilitada)
-//   SHEET_ID        → ID del Google Sheet (opcional, tiene default)
 
 const SHEET_ID_DEFAULT = '1ytfLJDMHuvg7kcYq_Y1G5hJx2BritUV4C4RxDyBjcZI';
 
+// Convierte serial de fecha de Google Sheets (ej: 46384) a "YYYY-MM-DD"
+function serialToIso(val) {
+  if (val === null || val === undefined || val === '') return '';
+  if (typeof val === 'number') {
+    const ms = Math.round((val - 25569) * 86400000);
+    return new Date(ms).toISOString().slice(0, 10);
+  }
+  return String(val).slice(0, 10);
+}
+
+// Convierte serial de tiempo (ej: 0.583) a "HH:MM"
+function serialToTime(val) {
+  if (typeof val === 'number' && val >= 0 && val < 1) {
+    const totalMinutes = Math.round(val * 24 * 60);
+    const h = Math.floor(totalMinutes / 60).toString().padStart(2, '0');
+    const m = (totalMinutes % 60).toString().padStart(2, '0');
+    return `${h}:${m}`;
+  }
+  return String(val ?? '');
+}
+
 export default async function handler(req, res) {
-  // CORS — permite que el mismo dominio llame al endpoint
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET');
 
@@ -24,7 +43,8 @@ export default async function handler(req, res) {
   try {
     const url =
       `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/` +
-      `${encodeURIComponent(sheetName)}?key=${API_KEY}&majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE`;
+      `${encodeURIComponent(sheetName)}?key=${API_KEY}` +
+      `&majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE`;
 
     const response = await fetch(url);
 
@@ -42,7 +62,7 @@ export default async function handler(req, res) {
     const [rawHeaders, ...rows] = data.values;
     const headers = rawHeaders.map(h => String(h ?? '').trim());
 
-    // Compute date buffer (2 days before 'from' to handle timezone edges)
+    // Buffer: 2 días antes del from para cubrir edges de zona horaria
     let filterFrom = null;
     if (from) {
       const buf = new Date(from);
@@ -57,18 +77,25 @@ export default async function handler(req, res) {
         if (headers[i]) obj[headers[i]] = row[i] !== undefined ? row[i] : '';
       }
 
-      // Server-side date filter — skip rows outside range
+      // Normalizar fecha (puede venir como serial numérico o string)
+      obj.fecha = serialToIso(obj.fecha);
+
+      // Normalizar hora_apertura si viene como serial de tiempo
+      if (obj.hora_apertura !== undefined) {
+        obj.hora_apertura = serialToTime(obj.hora_apertura);
+      }
+
+      // Filtro server-side por fecha
       if (filterFrom || to) {
-        const fecha = String(obj.fecha ?? '').slice(0, 10);
-        if (!fecha) continue;
-        if (filterFrom && fecha < filterFrom) continue;
-        if (to       && fecha > to)          continue;
+        const f = obj.fecha;
+        if (!f) continue;
+        if (filterFrom && f < filterFrom) continue;
+        if (to       && f > to)          continue;
       }
 
       objects.push(obj);
     }
 
-    // Cache 5 minutes on CDN
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=60');
     return res.json(objects);
 
