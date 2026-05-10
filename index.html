@@ -546,6 +546,7 @@ const LOADING_HTML = `
 // ════════════════════════════════════════════════════
 let rawOrdenes = [];
 let rawProductos = [];
+let rawOrdenesSemanaAnterior = [];
 let currentView = 'overview';
 let lastSyncAt = null;
 let selectedLocals = new Set(); // vacío = todos los locales
@@ -937,6 +938,79 @@ function normalizarOrdenSushiban(o) {
     _corregido_schema: true
   };
 }
+  function sbNum(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  if (typeof v === 'number') return v;
+  return Number(
+    String(v)
+      .replace(/\./g, '')
+      .replace(',', '.')
+      .replace(/[^\d.-]/g, '')
+  ) || 0;
+}
+
+function sbAddDays(isoDate, days) {
+  if (!isoDate) return '';
+  const d = new Date(isoDate + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function sbFechaOrden(o) {
+  return String(o.fecha || '').slice(0, 10);
+}
+
+function sbVentaOrden(o) {
+  return sbNum(o.cobrado) || sbNum(o.precio_lista) || 0;
+}
+
+function sbTextoPlano(v) {
+  return String(v || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+function sbCanalOrden(o) {
+  const texto = [
+    o.medio_pago,
+    o.caja,
+    o.tipo,
+    o.zona,
+    o.mesa
+  ].map(sbTextoPlano).join(' ');
+
+  const esDelivery =
+    texto.includes('uber') ||
+    texto.includes('ubereats') ||
+    texto.includes('uber eats') ||
+    texto.includes('rappi') ||
+    texto.includes('pedidosya') ||
+    texto.includes('pedidos ya') ||
+    texto.includes('delivery') ||
+    texto.includes('didi') ||
+    texto.includes('app');
+
+  return esDelivery ? 'Delivery' : 'Local';
+}
+
+function sbMedioPagoOrden(o) {
+  const raw = String(o.medio_pago || '').trim();
+
+  if (!raw) return 'Sin medio de pago';
+
+  const t = sbTextoPlano(raw);
+
+  if (t.includes('uber')) return 'Uber Eats';
+  if (t.includes('rappi')) return 'Rappi';
+  if (t.includes('pedidos')) return 'PedidosYa';
+  if (t.includes('efectivo')) return 'Efectivo';
+  if (t.includes('tarjeta') || t.includes('transbank') || t.includes('debito') || t.includes('credito')) return 'Tarjeta';
+  if (t.includes('transfer')) return 'Transferencia';
+
+  return raw;
+}
 async function loadData(options = {}) {
   setLoading(true);
   let ok = false;
@@ -945,13 +1019,35 @@ async function loadData(options = {}) {
     closeLocationPanel();
     // Pass date range to API for server-side filtering
     const dateFrom = document.getElementById('date-from')?.value || '';
-    const dateTo   = document.getElementById('date-to')?.value   || '';
-    const fetchOpts = { ...options, dateFrom, dateTo };
-    const { ordenes, productos } = await fetchMasterSheet(fetchOpts);
+const dateTo   = document.getElementById('date-to')?.value   || '';
 
-    rawOrdenes    = ordenes.map(normalizarOrdenSushiban);
-    rawProductos = productos;
-    lastSyncAt   = new Date();
+const fetchOpts = { ...options, dateFrom, dateTo };
+const { ordenes, productos } = await fetchMasterSheet(fetchOpts);
+
+// Cargar mismo período de la semana anterior para comparación,
+// sin mezclarlo con los KPIs principales.
+let ordenesSemanaAnterior = [];
+
+if (dateFrom && dateTo) {
+  const prevFetchOpts = {
+    ...options,
+    dateFrom: sbAddDays(dateFrom, -7),
+    dateTo: sbAddDays(dateTo, -7)
+  };
+
+  try {
+    const prevData = await fetchMasterSheet(prevFetchOpts);
+    ordenesSemanaAnterior = prevData.ordenes || [];
+  } catch (err) {
+    console.warn('No se pudo cargar semana anterior:', err);
+    ordenesSemanaAnterior = [];
+  }
+}
+
+rawOrdenes = ordenes.map(normalizarOrdenSushiban);
+rawOrdenesSemanaAnterior = ordenesSemanaAnterior.map(normalizarOrdenSushiban);
+rawProductos = productos;
+lastSyncAt = new Date();
 
     // Derive unique locals from data — sorted alphabetically
     const newLocals = [...new Set(rawOrdenes.map((r) => r.local).filter(Boolean))].sort();
