@@ -81,13 +81,18 @@ export default async function handler(req, res) {
         obj.hora_apertura = String(obj.hora_apertura ?? '');
       }
 
-      // FIX: en algunos registros el nombre del local quedó en hora_apertura
-      // en vez de local (bug en el Apps Script). Lo detectamos y corregimos.
-      if (!obj.local && obj.hora_apertura && obj.hora_apertura.startsWith('Sushiban')) {
-        obj.local = obj.hora_apertura;
-        obj.hora_apertura = '';
-      }
+     // Fix temporal para datos antiguos mal escritos:
+// algunos registros traen el nombre del local en hora_apertura en vez de local.
+const localActual = String(obj.local || '').trim();
+const horaAperturaActual = String(obj.hora_apertura || '').trim();
 
+if (!localActual && /^Sushiban\b/i.test(horaAperturaActual)) {
+  obj.local = horaAperturaActual;
+  obj.hora_apertura = '';
+} else {
+  obj.local = localActual;
+  obj.hora_apertura = horaAperturaActual;
+}
       // Date filter
       if (filterFrom || to) {
         const f = obj.fecha;
